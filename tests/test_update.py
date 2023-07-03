@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -17,6 +17,7 @@
 # You should have received a copy of the GNU Lesser Public License
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 import time
+from datetime import datetime
 
 import pytest
 
@@ -38,8 +39,9 @@ from telegram import (
     User,
 )
 from telegram._utils.datetime import from_timestamp
+from tests.auxil.slots import mro_slots
 
-message = Message(1, None, Chat(1, ""), from_user=User(1, "", False), text="Text")
+message = Message(1, datetime.utcnow(), Chat(1, ""), from_user=User(1, "", False), text="Text")
 chat_member_updated = ChatMemberUpdated(
     Chat(1, "chat"),
     User(1, "", False),
@@ -53,6 +55,7 @@ chat_join_request = ChatJoinRequest(
     chat=Chat(1, Chat.SUPERGROUP),
     from_user=User(1, "first_name", False),
     date=from_timestamp(int(time.time())),
+    user_chat_id=1,
     bio="bio",
 )
 
@@ -92,28 +95,32 @@ all_types = (
     "chat_join_request",
 )
 
-ids = all_types + ("callback_query_without_message",)
+ids = (*all_types, "callback_query_without_message")
 
 
-@pytest.fixture(params=params, ids=ids)
+@pytest.fixture(scope="module", params=params, ids=ids)
 def update(request):
-    return Update(update_id=TestUpdate.update_id, **request.param)
+    return Update(update_id=TestUpdateBase.update_id, **request.param)
 
 
-class TestUpdate:
+class TestUpdateBase:
     update_id = 868573637
 
-    def test_slot_behaviour(self, update, mro_slots):
+
+class TestUpdateWithoutRequest(TestUpdateBase):
+    def test_slot_behaviour(self):
+        update = Update(self.update_id)
         for attr in update.__slots__:
             assert getattr(update, attr, "err") != "err", f"got extra slot '{attr}'"
         assert len(mro_slots(update)) == len(set(mro_slots(update))), "duplicate slot"
 
     @pytest.mark.parametrize("paramdict", argvalues=params, ids=ids)
     def test_de_json(self, bot, paramdict):
-        json_dict = {"update_id": TestUpdate.update_id}
+        json_dict = {"update_id": self.update_id}
         # Convert the single update 'item' to a dict of that item and apply it to the json_dict
         json_dict.update({k: v.to_dict() for k, v in paramdict.items()})
         update = Update.de_json(json_dict, bot)
+        assert update.api_kwargs == {}
 
         assert update.update_id == self.update_id
 
@@ -138,6 +145,26 @@ class TestUpdate:
         for _type in all_types:
             if getattr(update, _type) is not None:
                 assert update_dict[_type] == getattr(update, _type).to_dict()
+
+    def test_equality(self):
+        a = Update(self.update_id, message=message)
+        b = Update(self.update_id, message=message)
+        c = Update(self.update_id)
+        d = Update(0, message=message)
+        e = User(self.update_id, "", False)
+
+        assert a == b
+        assert hash(a) == hash(b)
+        assert a is not b
+
+        assert a == c
+        assert hash(a) == hash(c)
+
+        assert a != d
+        assert hash(a) != hash(d)
+
+        assert a != e
+        assert hash(a) != hash(e)
 
     def test_effective_chat(self, update):
         # Test that it's sometimes None per docstring
@@ -185,23 +212,3 @@ class TestUpdate:
             assert eff_message.message_id == message.message_id
         else:
             assert eff_message is None
-
-    def test_equality(self):
-        a = Update(self.update_id, message=message)
-        b = Update(self.update_id, message=message)
-        c = Update(self.update_id)
-        d = Update(0, message=message)
-        e = User(self.update_id, "", False)
-
-        assert a == b
-        assert hash(a) == hash(b)
-        assert a is not b
-
-        assert a == c
-        assert hash(a) == hash(c)
-
-        assert a != d
-        assert hash(a) != hash(d)
-
-        assert a != e
-        assert hash(a) != hash(e)

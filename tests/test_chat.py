@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -21,34 +21,46 @@ import pytest
 
 from telegram import Bot, Chat, ChatLocation, ChatPermissions, Location, User
 from telegram.constants import ChatAction, ChatType
-from tests.conftest import check_defaults_handling, check_shortcut_call, check_shortcut_signature
+from telegram.helpers import escape_markdown
+from tests.auxil.bot_method_checks import (
+    check_defaults_handling,
+    check_shortcut_call,
+    check_shortcut_signature,
+)
+from tests.auxil.slots import mro_slots
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def chat(bot):
-    return Chat(
-        TestChat.id_,
-        title=TestChat.title,
-        type=TestChat.type_,
-        username=TestChat.username,
-        all_members_are_administrators=TestChat.all_members_are_administrators,
-        bot=bot,
-        sticker_set_name=TestChat.sticker_set_name,
-        can_set_sticker_set=TestChat.can_set_sticker_set,
-        permissions=TestChat.permissions,
-        slow_mode_delay=TestChat.slow_mode_delay,
-        bio=TestChat.bio,
-        linked_chat_id=TestChat.linked_chat_id,
-        location=TestChat.location,
+    chat = Chat(
+        TestChatBase.id_,
+        title=TestChatBase.title,
+        type=TestChatBase.type_,
+        username=TestChatBase.username,
+        sticker_set_name=TestChatBase.sticker_set_name,
+        can_set_sticker_set=TestChatBase.can_set_sticker_set,
+        permissions=TestChatBase.permissions,
+        slow_mode_delay=TestChatBase.slow_mode_delay,
+        bio=TestChatBase.bio,
+        linked_chat_id=TestChatBase.linked_chat_id,
+        location=TestChatBase.location,
         has_private_forwards=True,
         has_protected_content=True,
         join_to_send_messages=True,
         join_by_request=True,
         has_restricted_voice_and_video_messages=True,
+        is_forum=True,
+        active_usernames=TestChatBase.active_usernames,
+        emoji_status_custom_emoji_id=TestChatBase.emoji_status_custom_emoji_id,
+        has_aggressive_anti_spam_enabled=TestChatBase.has_aggressive_anti_spam_enabled,
+        has_hidden_members=TestChatBase.has_hidden_members,
     )
+    chat.set_bot(bot)
+    chat._unfreeze()
+    return chat
 
 
-class TestChat:
+class TestChatBase:
     id_ = -28767330
     title = "ToledosPalaceBot - Group"
     type_ = "group"
@@ -70,8 +82,15 @@ class TestChat:
     join_to_send_messages = True
     join_by_request = True
     has_restricted_voice_and_video_messages = True
+    is_forum = True
+    active_usernames = ["These", "Are", "Usernames!"]
+    emoji_status_custom_emoji_id = "VeryUniqueCustomEmojiID"
+    has_aggressive_anti_spam_enabled = True
+    has_hidden_members = True
 
-    def test_slot_behaviour(self, chat, mro_slots):
+
+class TestChatWithoutRequest(TestChatBase):
+    def test_slot_behaviour(self, chat):
         for attr in chat.__slots__:
             assert getattr(chat, attr, "err") != "err", f"got extra slot '{attr}'"
         assert len(mro_slots(chat)) == len(set(mro_slots(chat))), "duplicate slot"
@@ -97,6 +116,11 @@ class TestChat:
             "has_restricted_voice_and_video_messages": (
                 self.has_restricted_voice_and_video_messages
             ),
+            "is_forum": self.is_forum,
+            "active_usernames": self.active_usernames,
+            "emoji_status_custom_emoji_id": self.emoji_status_custom_emoji_id,
+            "has_aggressive_anti_spam_enabled": self.has_aggressive_anti_spam_enabled,
+            "has_hidden_members": self.has_hidden_members,
         }
         chat = Chat.de_json(json_dict, bot)
 
@@ -104,7 +128,6 @@ class TestChat:
         assert chat.title == self.title
         assert chat.type == self.type_
         assert chat.username == self.username
-        assert chat.all_members_are_administrators == self.all_members_are_administrators
         assert chat.sticker_set_name == self.sticker_set_name
         assert chat.can_set_sticker_set == self.can_set_sticker_set
         assert chat.permissions == self.permissions
@@ -121,6 +144,14 @@ class TestChat:
             chat.has_restricted_voice_and_video_messages
             == self.has_restricted_voice_and_video_messages
         )
+        assert chat.api_kwargs == {
+            "all_members_are_administrators": self.all_members_are_administrators
+        }
+        assert chat.is_forum == self.is_forum
+        assert chat.active_usernames == tuple(self.active_usernames)
+        assert chat.emoji_status_custom_emoji_id == self.emoji_status_custom_emoji_id
+        assert chat.has_aggressive_anti_spam_enabled == self.has_aggressive_anti_spam_enabled
+        assert chat.has_hidden_members == self.has_hidden_members
 
     def test_to_dict(self, chat):
         chat_dict = chat.to_dict()
@@ -130,7 +161,6 @@ class TestChat:
         assert chat_dict["title"] == chat.title
         assert chat_dict["type"] == chat.type
         assert chat_dict["username"] == chat.username
-        assert chat_dict["all_members_are_administrators"] == chat.all_members_are_administrators
         assert chat_dict["permissions"] == chat.permissions.to_dict()
         assert chat_dict["slow_mode_delay"] == chat.slow_mode_delay
         assert chat_dict["bio"] == chat.bio
@@ -144,12 +174,48 @@ class TestChat:
             chat_dict["has_restricted_voice_and_video_messages"]
             == chat.has_restricted_voice_and_video_messages
         )
+        assert chat_dict["is_forum"] == chat.is_forum
+        assert chat_dict["active_usernames"] == list(chat.active_usernames)
+        assert chat_dict["emoji_status_custom_emoji_id"] == chat.emoji_status_custom_emoji_id
+        assert (
+            chat_dict["has_aggressive_anti_spam_enabled"] == chat.has_aggressive_anti_spam_enabled
+        )
+        assert chat_dict["has_hidden_members"] == chat.has_hidden_members
+
+    def test_always_tuples_attributes(self):
+        chat = Chat(
+            id=123,
+            title="title",
+            type=Chat.PRIVATE,
+        )
+        assert isinstance(chat.active_usernames, tuple)
+        assert chat.active_usernames == ()
 
     def test_enum_init(self):
         chat = Chat(id=1, type="foo")
         assert chat.type == "foo"
         chat = Chat(id=1, type="private")
         assert chat.type is ChatType.PRIVATE
+
+    def test_equality(self):
+        a = Chat(self.id_, self.title, self.type_)
+        b = Chat(self.id_, self.title, self.type_)
+        c = Chat(self.id_, "", "")
+        d = Chat(0, self.title, self.type_)
+        e = User(self.id_, "", False)
+
+        assert a == b
+        assert hash(a) == hash(b)
+        assert a is not b
+
+        assert a == c
+        assert hash(a) == hash(c)
+
+        assert a != d
+        assert hash(a) != hash(d)
+
+        assert a != e
+        assert hash(a) != hash(e)
 
     def test_link(self, chat):
         assert chat.link == f"https://t.me/{chat.username}"
@@ -169,6 +235,16 @@ class TestChat:
         )
         assert chat.full_name is None
 
+    def test_effective_name(self):
+        chat = Chat(id=1, type=Chat.PRIVATE, first_name="first\u2022name")
+        assert chat.effective_name == "first\u2022name"
+        chat = Chat(id=1, type=Chat.GROUP, title="group")
+        assert chat.effective_name == "group"
+        chat = Chat(id=1, type=Chat.GROUP, first_name="first\u2022name", title="group")
+        assert chat.effective_name == "group"
+        chat = Chat(id=1, type=Chat.GROUP)
+        assert chat.effective_name is None
+
     async def test_send_action(self, monkeypatch, chat):
         async def make_assertion(*_, **kwargs):
             id_ = kwargs["chat_id"] == chat.id
@@ -180,7 +256,6 @@ class TestChat:
         assert await check_defaults_handling(chat.send_action, chat.get_bot())
 
         monkeypatch.setattr(chat.get_bot(), "send_chat_action", make_assertion)
-        assert await chat.send_action(action=ChatAction.TYPING)
         assert await chat.send_action(action=ChatAction.TYPING)
 
     async def test_leave(self, monkeypatch, chat):
@@ -411,8 +486,7 @@ class TestChat:
 
     async def test_delete_photo(self, monkeypatch, chat):
         async def make_assertion(*_, **kwargs):
-            chat_id = kwargs["chat_id"] == chat.id
-            return chat_id
+            return kwargs["chat_id"] == chat.id
 
         assert check_shortcut_signature(Chat.delete_photo, Bot.delete_chat_photo, ["chat_id"], [])
         assert await check_shortcut_call(chat.delete_photo, chat.get_bot(), "delete_chat_photo")
@@ -879,22 +953,322 @@ class TestChat:
         monkeypatch.setattr(chat.get_bot(), "decline_chat_join_request", make_assertion)
         assert await chat.decline_join_request(user_id=42)
 
-    def test_equality(self):
-        a = Chat(self.id_, self.title, self.type_)
-        b = Chat(self.id_, self.title, self.type_)
-        c = Chat(self.id_, "", "")
-        d = Chat(0, self.title, self.type_)
-        e = User(self.id_, "", False)
+    async def test_create_forum_topic(self, monkeypatch, chat):
+        async def make_assertion(*_, **kwargs):
+            return (
+                kwargs["chat_id"] == chat.id
+                and kwargs["name"] == "New Name"
+                and kwargs["icon_color"] == 0x6FB9F0
+                and kwargs["icon_custom_emoji_id"] == "12345"
+            )
 
-        assert a == b
-        assert hash(a) == hash(b)
-        assert a is not b
+        assert check_shortcut_signature(
+            Chat.create_forum_topic, Bot.create_forum_topic, ["chat_id"], []
+        )
+        assert await check_shortcut_call(
+            chat.create_forum_topic,
+            chat.get_bot(),
+            "create_forum_topic",
+            shortcut_kwargs=["chat_id"],
+        )
+        assert await check_defaults_handling(chat.create_forum_topic, chat.get_bot())
 
-        assert a == c
-        assert hash(a) == hash(c)
+        monkeypatch.setattr(chat.get_bot(), "create_forum_topic", make_assertion)
+        assert await chat.create_forum_topic(
+            name="New Name", icon_color=0x6FB9F0, icon_custom_emoji_id="12345"
+        )
 
-        assert a != d
-        assert hash(a) != hash(d)
+    async def test_edit_forum_topic(self, monkeypatch, chat):
+        async def make_assertion(*_, **kwargs):
+            return (
+                kwargs["chat_id"] == chat.id
+                and kwargs["message_thread_id"] == 42
+                and kwargs["name"] == "New Name"
+                and kwargs["icon_custom_emoji_id"] == "12345"
+            )
 
-        assert a != e
-        assert hash(a) != hash(e)
+        assert check_shortcut_signature(
+            Chat.edit_forum_topic, Bot.edit_forum_topic, ["chat_id"], []
+        )
+        assert await check_shortcut_call(
+            chat.edit_forum_topic, chat.get_bot(), "edit_forum_topic", shortcut_kwargs=["chat_id"]
+        )
+        assert await check_defaults_handling(chat.edit_forum_topic, chat.get_bot())
+
+        monkeypatch.setattr(chat.get_bot(), "edit_forum_topic", make_assertion)
+        assert await chat.edit_forum_topic(
+            message_thread_id=42, name="New Name", icon_custom_emoji_id="12345"
+        )
+
+    async def test_close_forum_topic(self, monkeypatch, chat):
+        async def make_assertion(*_, **kwargs):
+            return kwargs["chat_id"] == chat.id and kwargs["message_thread_id"] == 42
+
+        assert check_shortcut_signature(
+            Chat.close_forum_topic, Bot.close_forum_topic, ["chat_id"], []
+        )
+        assert await check_shortcut_call(
+            chat.close_forum_topic,
+            chat.get_bot(),
+            "close_forum_topic",
+            shortcut_kwargs=["chat_id"],
+        )
+        assert await check_defaults_handling(chat.close_forum_topic, chat.get_bot())
+
+        monkeypatch.setattr(chat.get_bot(), "close_forum_topic", make_assertion)
+        assert await chat.close_forum_topic(message_thread_id=42)
+
+    async def test_reopen_forum_topic(self, monkeypatch, chat):
+        async def make_assertion(*_, **kwargs):
+            return kwargs["chat_id"] == chat.id and kwargs["message_thread_id"] == 42
+
+        assert check_shortcut_signature(
+            Chat.reopen_forum_topic, Bot.reopen_forum_topic, ["chat_id"], []
+        )
+        assert await check_shortcut_call(
+            chat.reopen_forum_topic,
+            chat.get_bot(),
+            "reopen_forum_topic",
+            shortcut_kwargs=["chat_id"],
+        )
+        assert await check_defaults_handling(chat.reopen_forum_topic, chat.get_bot())
+
+        monkeypatch.setattr(chat.get_bot(), "reopen_forum_topic", make_assertion)
+        assert await chat.reopen_forum_topic(message_thread_id=42)
+
+    async def test_delete_forum_topic(self, monkeypatch, chat):
+        async def make_assertion(*_, **kwargs):
+            return kwargs["chat_id"] == chat.id and kwargs["message_thread_id"] == 42
+
+        assert check_shortcut_signature(
+            Chat.delete_forum_topic, Bot.delete_forum_topic, ["chat_id"], []
+        )
+        assert await check_shortcut_call(
+            chat.delete_forum_topic,
+            chat.get_bot(),
+            "delete_forum_topic",
+            shortcut_kwargs=["chat_id"],
+        )
+        assert await check_defaults_handling(chat.delete_forum_topic, chat.get_bot())
+
+        monkeypatch.setattr(chat.get_bot(), "delete_forum_topic", make_assertion)
+        assert await chat.delete_forum_topic(message_thread_id=42)
+
+    async def test_unpin_all_forum_topic_messages(self, monkeypatch, chat):
+        async def make_assertion(*_, **kwargs):
+            return kwargs["chat_id"] == chat.id and kwargs["message_thread_id"] == 42
+
+        assert check_shortcut_signature(
+            Chat.unpin_all_forum_topic_messages,
+            Bot.unpin_all_forum_topic_messages,
+            ["chat_id"],
+            [],
+        )
+        assert await check_shortcut_call(
+            chat.unpin_all_forum_topic_messages,
+            chat.get_bot(),
+            "unpin_all_forum_topic_messages",
+            shortcut_kwargs=["chat_id"],
+        )
+        assert await check_defaults_handling(chat.unpin_all_forum_topic_messages, chat.get_bot())
+
+        monkeypatch.setattr(chat.get_bot(), "unpin_all_forum_topic_messages", make_assertion)
+        assert await chat.unpin_all_forum_topic_messages(message_thread_id=42)
+
+    async def test_edit_general_forum_topic(self, monkeypatch, chat):
+        async def make_assertion(*_, **kwargs):
+            return kwargs["chat_id"] == chat.id and kwargs["name"] == "WhatAName"
+
+        assert check_shortcut_signature(
+            Chat.edit_general_forum_topic,
+            Bot.edit_general_forum_topic,
+            ["chat_id"],
+            [],
+        )
+        assert await check_shortcut_call(
+            chat.edit_general_forum_topic,
+            chat.get_bot(),
+            "edit_general_forum_topic",
+            shortcut_kwargs=["chat_id"],
+        )
+        assert await check_defaults_handling(chat.edit_general_forum_topic, chat.get_bot())
+
+        monkeypatch.setattr(chat.get_bot(), "edit_general_forum_topic", make_assertion)
+        assert await chat.edit_general_forum_topic(name="WhatAName")
+
+    async def test_close_general_forum_topic(self, monkeypatch, chat):
+        async def make_assertion(*_, **kwargs):
+            return kwargs["chat_id"] == chat.id
+
+        assert check_shortcut_signature(
+            Chat.close_general_forum_topic,
+            Bot.close_general_forum_topic,
+            ["chat_id"],
+            [],
+        )
+        assert await check_shortcut_call(
+            chat.close_general_forum_topic,
+            chat.get_bot(),
+            "close_general_forum_topic",
+            shortcut_kwargs=["chat_id"],
+        )
+        assert await check_defaults_handling(chat.close_general_forum_topic, chat.get_bot())
+
+        monkeypatch.setattr(chat.get_bot(), "close_general_forum_topic", make_assertion)
+        assert await chat.close_general_forum_topic()
+
+    async def test_reopen_general_forum_topic(self, monkeypatch, chat):
+        async def make_assertion(*_, **kwargs):
+            return kwargs["chat_id"] == chat.id
+
+        assert check_shortcut_signature(
+            Chat.reopen_general_forum_topic,
+            Bot.reopen_general_forum_topic,
+            ["chat_id"],
+            [],
+        )
+        assert await check_shortcut_call(
+            chat.reopen_general_forum_topic,
+            chat.get_bot(),
+            "reopen_general_forum_topic",
+            shortcut_kwargs=["chat_id"],
+        )
+        assert await check_defaults_handling(chat.reopen_general_forum_topic, chat.get_bot())
+
+        monkeypatch.setattr(chat.get_bot(), "reopen_general_forum_topic", make_assertion)
+        assert await chat.reopen_general_forum_topic()
+
+    async def test_hide_general_forum_topic(self, monkeypatch, chat):
+        async def make_assertion(*_, **kwargs):
+            return kwargs["chat_id"] == chat.id
+
+        assert check_shortcut_signature(
+            Chat.hide_general_forum_topic,
+            Bot.hide_general_forum_topic,
+            ["chat_id"],
+            [],
+        )
+        assert await check_shortcut_call(
+            chat.hide_general_forum_topic,
+            chat.get_bot(),
+            "hide_general_forum_topic",
+            shortcut_kwargs=["chat_id"],
+        )
+        assert await check_defaults_handling(chat.hide_general_forum_topic, chat.get_bot())
+
+        monkeypatch.setattr(chat.get_bot(), "hide_general_forum_topic", make_assertion)
+        assert await chat.hide_general_forum_topic()
+
+    async def test_unhide_general_forum_topic(self, monkeypatch, chat):
+        async def make_assertion(*_, **kwargs):
+            return kwargs["chat_id"] == chat.id
+
+        assert check_shortcut_signature(
+            Chat.unhide_general_forum_topic,
+            Bot.unhide_general_forum_topic,
+            ["chat_id"],
+            [],
+        )
+        assert await check_shortcut_call(
+            chat.unhide_general_forum_topic,
+            chat.get_bot(),
+            "unhide_general_forum_topic",
+            shortcut_kwargs=["chat_id"],
+        )
+        assert await check_defaults_handling(chat.unhide_general_forum_topic, chat.get_bot())
+
+        monkeypatch.setattr(chat.get_bot(), "unhide_general_forum_topic", make_assertion)
+        assert await chat.unhide_general_forum_topic()
+
+    def test_mention_html(self):
+        chat = Chat(id=1, type="foo")
+        with pytest.raises(TypeError, match="Can not create a mention to a private group chat"):
+            chat.mention_html()
+
+        expected = '<a href="tg://user?id={}">{}</a>'
+        chat = Chat(
+            id=1, type=Chat.PRIVATE, first_name="first\u2022name", last_name="last\u2022name"
+        )
+        assert chat.mention_html("the_name*\u2022") == expected.format(chat.id, "the_name*\u2022")
+        assert chat.mention_html() == expected.format(chat.id, chat.full_name)
+        chat = Chat(id=1, type=Chat.PRIVATE, last_name="last\u2022name")
+        with pytest.raises(
+            TypeError, match="Can not create a mention to a private chat without first name"
+        ):
+            chat.mention_html()
+
+        expected = '<a href="https://t.me/{}">{}</a>'
+        chat = Chat(id=1, type="foo", username="user\u2022name", title="\u2022title")
+        assert chat.mention_html("the_name*\u2022") == expected.format(
+            chat.username, "the_name*\u2022"
+        )
+        assert chat.mention_html() == expected.format(chat.username, chat.title)
+        chat = Chat(id=1, type="foo", username="user\u2022name")
+        with pytest.raises(
+            TypeError, match="Can not create a mention to a public chat without title"
+        ):
+            chat.mention_html()
+
+    def test_mention_markdown(self):
+        chat = Chat(id=1, type="foo")
+        with pytest.raises(TypeError, match="Can not create a mention to a private group chat"):
+            chat.mention_markdown()
+
+        expected = "[{}](tg://user?id={})"
+        chat = Chat(
+            id=1, type=Chat.PRIVATE, first_name="first\u2022name", last_name="last\u2022name"
+        )
+        assert chat.mention_markdown("the_name*\u2022") == expected.format(
+            "the_name*\u2022", chat.id
+        )
+        assert chat.mention_markdown() == expected.format(chat.full_name, chat.id)
+        chat = Chat(id=1, type=Chat.PRIVATE, last_name="last\u2022name")
+        with pytest.raises(
+            TypeError, match="Can not create a mention to a private chat without first name"
+        ):
+            chat.mention_markdown()
+
+        expected = "[{}](https://t.me/{})"
+        chat = Chat(id=1, type="foo", username="user\u2022name", title="\u2022title")
+        assert chat.mention_markdown("the_name*\u2022") == expected.format(
+            "the_name*\u2022", chat.username
+        )
+        assert chat.mention_markdown() == expected.format(chat.title, chat.username)
+        chat = Chat(id=1, type="foo", username="user\u2022name")
+        with pytest.raises(
+            TypeError, match="Can not create a mention to a public chat without title"
+        ):
+            chat.mention_markdown()
+
+    def test_mention_markdown_v2(self):
+        chat = Chat(id=1, type="foo")
+        with pytest.raises(TypeError, match="Can not create a mention to a private group chat"):
+            chat.mention_markdown_v2()
+
+        expected = "[{}](tg://user?id={})"
+        chat = Chat(id=1, type=Chat.PRIVATE, first_name="first{name", last_name="last_name")
+        assert chat.mention_markdown_v2("the{name>\u2022") == expected.format(
+            "the\\{name\\>\u2022", chat.id
+        )
+        assert chat.mention_markdown_v2() == expected.format(
+            escape_markdown(chat.full_name, version=2), chat.id
+        )
+        chat = Chat(id=1, type=Chat.PRIVATE, last_name="last_name")
+        with pytest.raises(
+            TypeError, match="Can not create a mention to a private chat without first name"
+        ):
+            chat.mention_markdown_v2()
+
+        expected = "[{}](https://t.me/{})"
+        chat = Chat(id=1, type="foo", username="user{name", title="{title")
+        assert chat.mention_markdown_v2("the{name>\u2022") == expected.format(
+            "the\\{name\\>\u2022", chat.username
+        )
+        assert chat.mention_markdown_v2() == expected.format(
+            escape_markdown(chat.title, version=2), chat.username
+        )
+        chat = Chat(id=1, type="foo", username="user\u2022name")
+        with pytest.raises(
+            TypeError, match="Can not create a mention to a public chat without title"
+        ):
+            chat.mention_markdown_v2()

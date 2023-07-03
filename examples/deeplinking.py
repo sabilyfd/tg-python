@@ -42,6 +42,9 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 
+# set higher logging level for httpx to avoid all GET and POST requests being logged
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 # Define constants that will allow us to reuse the deep-linking parameters.
@@ -115,7 +118,7 @@ def main() -> None:
     application = Application.builder().token("TOKEN").build()
 
     # More info on what deep linking actually is (read this first if it's unclear to you):
-    # https://core.telegram.org/bots#deep-linking
+    # https://core.telegram.org/bots/features#deep-linking
 
     # Register a deep-linking handler
     application.add_handler(
@@ -144,7 +147,7 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
 
     # Run the bot until the user presses Ctrl-C
-    application.run_polling()
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":

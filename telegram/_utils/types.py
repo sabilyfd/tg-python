@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -24,7 +24,18 @@ Warning:
     the changelog.
 """
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any, Collection, Dict, Optional, Tuple, TypeVar, Union
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Collection,
+    Dict,
+    Literal,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 if TYPE_CHECKING:
     from telegram import (
@@ -44,22 +55,23 @@ FilePathInput = Union[str, Path]
 
 FileInput = Union[FilePathInput, FileLike, bytes, str]
 """Valid input for passing files to Telegram. Either a file id as string, a file like object,
-a local file path as string, :class:`pathlib.Path` or the file contents as :obj:`bytes` or
-:obj:`str`."""
+a local file path as string, :class:`pathlib.Path` or the file contents as :obj:`bytes`."""
 
 JSONDict = Dict[str, Any]
 """Dictionary containing response from Telegram or data to send to the API."""
 
-DVType = TypeVar("DVType")  # pylint: disable=invalid-name
-ODVInput = Optional[Union["DefaultValue[DVType]", DVType]]
+DVValueType = TypeVar("DVValueType")  # pylint: disable=invalid-name
+DVType = Union[DVValueType, "DefaultValue[DVValueType]"]
+"""Generic type for a variable which can be either `type` or `DefaultVaule[type]`."""
+ODVInput = Optional[Union["DefaultValue[DVValueType]", DVValueType, "DefaultValue[None]"]]
 """Generic type for bot method parameters which can have defaults. ``ODVInput[type]`` is the same
-as ``Optional[Union[DefaultValue, type]]``."""
-DVInput = Union["DefaultValue[DVType]", DVType]
+as ``Optional[Union[DefaultValue[type], type, DefaultValue[None]]``."""
+DVInput = Union["DefaultValue[DVValueType]", DVValueType, "DefaultValue[None]"]
 """Generic type for bot method parameters which can have defaults. ``DVInput[type]`` is the same
-as ``Union[DefaultValue, type]``."""
+as ``Union[DefaultValue[type], type, DefaultValue[None]]``."""
 
 RT = TypeVar("RT")
-SCT = Union[RT, Collection[RT]]
+SCT = Union[RT, Collection[RT]]  # pylint: disable=invalid-name
 """Single instance or collection of instances."""
 
 ReplyMarkup = Union[
@@ -74,3 +86,12 @@ FieldTuple = Tuple[str, bytes, str]
 """Alias for return type of `InputFile.field_tuple`."""
 UploadFileDict = Dict[str, FieldTuple]
 """Dictionary containing file data to be uploaded to the API."""
+
+HTTPVersion = Literal["1.1", "2.0"]
+"""Allowed HTTP versions.
+
+.. versionadded:: NEXT.VERSION"""
+
+CorrectOptionID = Literal[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+MarkdownVersion = Literal[1, 2]

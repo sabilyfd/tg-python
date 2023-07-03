@@ -9,6 +9,8 @@ The current development team includes
 - `Poolitzer <https://github.com/Poolitzer>`_ (community liaison)
 - `Shivam <https://github.com/Starry69>`_
 - `Harshil <https://github.com/harshil21>`_
+- `Dmitry Kolomatskiy <https://github.com/lemontree210>`_
+- `Aditya <https://github.com/clot27>`_
 
 Emeritus maintainers include
 `Jannes Höke <https://github.com/jh0ker>`_ (`@jh0ker <https://t.me/jh0ker>`_ on Telegram),
@@ -22,12 +24,14 @@ The following wonderful people contributed directly or indirectly to this projec
 - `Abshar <https://github.com/abxhr>`_
 - `Alateas <https://github.com/alateas>`_
 - `Ales Dokshanin <https://github.com/alesdokshanin>`_
+- `Alizia <https://github.com/thefunkycat>`_
 - `Ambro17 <https://github.com/Ambro17>`_
 - `Andrej Zhilenkov <https://github.com/Andrej730>`_
 - `Anton Tagunov <https://github.com/anton-tagunov>`_
 - `Avanatiker <https://github.com/Avanatiker>`_
 - `Balduro <https://github.com/Balduro>`_
 - `Bibo-Joshi <https://github.com/Bibo-Joshi>`_
+- `Biruk Alamirew <https://github.com/BAcode-X>`_
 - `bimmlerd <https://github.com/bimmlerd>`_
 - `cyc8 <https://github.com/cyc8>`_ 
 - `d-qoi <https://github.com/d-qoi>`_
@@ -69,9 +73,13 @@ The following wonderful people contributed directly or indirectly to this projec
 - `Li-aung Yip <https://github.com/LiaungYip>`_
 - `Loo Zheng Yuan <https://github.com/loozhengyuan>`_
 - `LRezende <https://github.com/lrezende>`_
+- `Luca Bellanti <https://github.com/Trifase>`_
 - `macrojames <https://github.com/macrojames>`_
 - `Matheus Lemos <https://github.com/mlemosf>`_
+- `Michael Dix <https://github.com/Eisberge>`_
 - `Michael Elovskikh <https://github.com/wronglink>`_
+- `Miguel C. R. <https://github.com/MiguelX413>`_
+- `miles <https://github.com/miles170>`_
 - `Mischa Krüger <https://github.com/Makman2>`_
 - `naveenvhegde <https://github.com/naveenvhegde>`_
 - `neurrone <https://github.com/neurrone>`_
@@ -95,8 +103,10 @@ The following wonderful people contributed directly or indirectly to this projec
 - `Riko Naka <https://github.com/rikonaka>`_
 - `Rizlas <https://github.com/rizlas>`_
 - `Sahil Sharma <https://github.com/sahilsharma811>`_
+- `Sam Mosleh <https://github.com/sam-mosleh>`_
 - `Sascha <https://github.com/saschalalala>`_
 - `Shelomentsev D <https://github.com/shelomentsevd>`_
+- `Shivam Saini <https://github.com/shivamsn97>`_
 - `Simon Schürrle <https://github.com/SitiSchu>`_
 - `sooyhwang <https://github.com/sooyhwang>`_
 - `syntx <https://github.com/syntx>`_

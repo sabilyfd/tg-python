@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 """This module contains an object that represents a Telegram OrderInfo."""
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional
 
 from telegram._payment.shippingaddress import ShippingAddress
 from telegram._telegramobject import TelegramObject
@@ -40,7 +40,6 @@ class OrderInfo(TelegramObject):
         phone_number (:obj:`str`, optional): User's phone number.
         email (:obj:`str`, optional): User email.
         shipping_address (:class:`telegram.ShippingAddress`, optional): User shipping address.
-        **kwargs (:obj:`dict`): Arbitrary keyword arguments.
 
     Attributes:
         name (:obj:`str`): Optional. User name.
@@ -54,18 +53,22 @@ class OrderInfo(TelegramObject):
 
     def __init__(
         self,
-        name: str = None,
-        phone_number: str = None,
-        email: str = None,
-        shipping_address: str = None,
-        **_kwargs: Any,
+        name: Optional[str] = None,
+        phone_number: Optional[str] = None,
+        email: Optional[str] = None,
+        shipping_address: Optional[str] = None,
+        *,
+        api_kwargs: Optional[JSONDict] = None,
     ):
-        self.name = name
-        self.phone_number = phone_number
-        self.email = email
-        self.shipping_address = shipping_address
+        super().__init__(api_kwargs=api_kwargs)
+        self.name: Optional[str] = name
+        self.phone_number: Optional[str] = phone_number
+        self.email: Optional[str] = email
+        self.shipping_address: Optional[str] = shipping_address
 
         self._id_attrs = (self.name, self.phone_number, self.email, self.shipping_address)
+
+        self._freeze()
 
     @classmethod
     def de_json(cls, data: Optional[JSONDict], bot: "Bot") -> Optional["OrderInfo"]:
@@ -77,4 +80,4 @@ class OrderInfo(TelegramObject):
 
         data["shipping_address"] = ShippingAddress.de_json(data.get("shipping_address"), bot)
 
-        return cls(**data)
+        return super().de_json(data=data, bot=bot)

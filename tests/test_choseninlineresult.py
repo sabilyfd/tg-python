@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -20,23 +20,30 @@
 import pytest
 
 from telegram import ChosenInlineResult, Location, User, Voice
+from tests.auxil.slots import mro_slots
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def user():
-    return User(1, "First name", False)
+    user = User(1, "First name", False)
+    user._unfreeze()
+    return user
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def chosen_inline_result(user):
-    return ChosenInlineResult(TestChosenInlineResult.result_id, user, TestChosenInlineResult.query)
+    return ChosenInlineResult(
+        TestChosenInlineResultBase.result_id, user, TestChosenInlineResultBase.query
+    )
 
 
-class TestChosenInlineResult:
+class TestChosenInlineResultBase:
     result_id = "result id"
     query = "query text"
 
-    def test_slot_behaviour(self, chosen_inline_result, mro_slots):
+
+class TestChosenInlineResultWithoutRequest(TestChosenInlineResultBase):
+    def test_slot_behaviour(self, chosen_inline_result):
         inst = chosen_inline_result
         for attr in inst.__slots__:
             assert getattr(inst, attr, "err") != "err", f"got extra slot '{attr}'"
@@ -45,6 +52,7 @@ class TestChosenInlineResult:
     def test_de_json_required(self, bot, user):
         json_dict = {"result_id": self.result_id, "from": user.to_dict(), "query": self.query}
         result = ChosenInlineResult.de_json(json_dict, bot)
+        assert result.api_kwargs == {}
 
         assert result.result_id == self.result_id
         assert result.from_user == user
@@ -60,6 +68,7 @@ class TestChosenInlineResult:
             "inline_message_id": "a random id",
         }
         result = ChosenInlineResult.de_json(json_dict, bot)
+        assert result.api_kwargs == {}
 
         assert result.result_id == self.result_id
         assert result.from_user == user

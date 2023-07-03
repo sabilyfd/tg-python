@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -16,6 +16,7 @@
 #
 # You should have received a copy of the GNU Lesser Public License
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
+from copy import copy
 from datetime import datetime
 
 import pytest
@@ -25,6 +26,7 @@ from telegram import (
     Audio,
     Bot,
     Chat,
+    ChatShared,
     Contact,
     Dice,
     Document,
@@ -43,6 +45,7 @@ from telegram import (
     SuccessfulPayment,
     Update,
     User,
+    UserShared,
     Venue,
     Video,
     VideoChatEnded,
@@ -53,25 +56,35 @@ from telegram import (
     Voice,
     WebAppData,
 )
+from telegram._utils.datetime import UTC
 from telegram.constants import ChatAction, ParseMode
 from telegram.ext import Defaults
-from tests.conftest import check_defaults_handling, check_shortcut_call, check_shortcut_signature
-from tests.test_passport import RAW_PASSPORT_DATA
+from telegram.warnings import PTBDeprecationWarning
+from tests._passport.test_passport import RAW_PASSPORT_DATA
+from tests.auxil.bot_method_checks import (
+    check_defaults_handling,
+    check_shortcut_call,
+    check_shortcut_signature,
+)
+from tests.auxil.slots import mro_slots
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def message(bot):
-    return Message(
-        message_id=TestMessage.id_,
-        date=TestMessage.date,
-        chat=TestMessage.chat,
-        from_user=TestMessage.from_user,
-        bot=bot,
+    message = Message(
+        message_id=TestMessageBase.id_,
+        date=TestMessageBase.date,
+        chat=copy(TestMessageBase.chat),
+        from_user=copy(TestMessageBase.from_user),
     )
+    message.set_bot(bot)
+    message._unfreeze()
+    message.chat._unfreeze()
+    message.from_user._unfreeze()
+    return message
 
 
 @pytest.fixture(
-    scope="function",
     params=[
         {"forward_from": User(99, "forward_user", False), "forward_date": datetime.utcnow()},
         {
@@ -79,11 +92,15 @@ def message(bot):
             "forward_from_message_id": 101,
             "forward_date": datetime.utcnow(),
         },
-        {"reply_to_message": Message(50, None, None, None)},
+        {
+            "reply_to_message": Message(
+                50, datetime.utcnow(), Chat(13, "channel"), User(9, "i", False)
+            )
+        },
         {"edit_date": datetime.utcnow()},
         {
             "text": "a text message",
-            "enitites": [MessageEntity("bold", 10, 4), MessageEntity("italic", 16, 7)],
+            "entities": [MessageEntity("bold", 10, 4), MessageEntity("italic", 16, 7)],
         },
         {
             "caption": "A message caption",
@@ -123,7 +140,11 @@ def message(bot):
         {"message_auto_delete_timer_changed": MessageAutoDeleteTimerChanged(42)},
         {"migrate_to_chat_id": -12345},
         {"migrate_from_chat_id": -54321},
-        {"pinned_message": Message(7, None, None, None)},
+        {
+            "pinned_message": Message(
+                7, datetime.utcnow(), Chat(13, "channel"), User(9, "i", False)
+            )
+        },
         {"invoice": Invoice("my invoice", "invoice", "start", "EUR", 243)},
         {
             "successful_payment": SuccessfulPayment(
@@ -164,7 +185,6 @@ def message(bot):
                 ]
             },
         },
-        {"quote": True},
         {"dice": Dice(4, "🎲")},
         {"via_bot": User(9, "A_Bot", True)},
         {
@@ -190,6 +210,9 @@ def message(bot):
             ]
         },
         {"web_app_data": WebAppData("some_data", "some_button_text")},
+        {"message_thread_id": 123},
+        {"user_shared": UserShared(1, 2)},
+        {"chat_shared": ChatShared(3, 4)},
     ],
     ids=[
         "forwarded_user",
@@ -231,7 +254,6 @@ def message(bot):
         "passport_data",
         "poll",
         "reply_markup",
-        "default_quote",
         "dice",
         "via_bot",
         "proximity_alert_triggered",
@@ -244,20 +266,24 @@ def message(bot):
         "has_protected_content",
         "entities",
         "web_app_data",
+        "message_thread_id",
+        "user_shared",
+        "chat_shared",
     ],
 )
 def message_params(bot, request):
-    return Message(
-        message_id=TestMessage.id_,
-        from_user=TestMessage.from_user,
-        date=TestMessage.date,
-        chat=TestMessage.chat,
-        bot=bot,
+    message = Message(
+        message_id=TestMessageBase.id_,
+        from_user=TestMessageBase.from_user,
+        date=TestMessageBase.date,
+        chat=TestMessageBase.chat,
         **request.param,
     )
+    message.set_bot(bot)
+    return message
 
 
-class TestMessage:
+class TestMessageBase:
     id_ = 1
     from_user = User(2, "testuser", False)
     date = datetime.utcnow()
@@ -297,10 +323,11 @@ class TestMessage:
         {"length": 9, "offset": 101, "type": "strikethrough"},
         {"length": 10, "offset": 129, "type": "pre", "language": "python"},
         {"length": 7, "offset": 141, "type": "spoiler"},
+        {"length": 2, "offset": 150, "type": "custom_emoji", "custom_emoji_id": "1"},
     ]
     test_text_v2 = (
         r"Test for <bold, ita_lic, \`code, links, text-mention and `\pre. "
-        "http://google.com and bold nested in strk>trgh nested in italic. Python pre. Spoiled."
+        "http://google.com and bold nested in strk>trgh nested in italic. Python pre. Spoiled. 👍."
     )
     test_message = Message(
         message_id=1,
@@ -323,8 +350,16 @@ class TestMessage:
         caption_entities=[MessageEntity(**e) for e in test_entities_v2],
     )
 
+
+class TestMessageWithoutRequest(TestMessageBase):
+    def test_slot_behaviour(self, message):
+        for attr in message.__slots__:
+            assert getattr(message, attr, "err") != "err", f"got extra slot '{attr}'"
+        assert len(mro_slots(message)) == len(set(mro_slots(message))), "duplicate slot"
+
     def test_all_possibilities_de_json_and_to_dict(self, bot, message_params):
         new = Message.de_json(message_params.to_dict(), bot)
+        assert new.api_kwargs == {}
         assert new.to_dict() == message_params.to_dict()
 
         # Checking that none of the attributes are dicts is a best effort approach to ensure that
@@ -333,10 +368,66 @@ class TestMessage:
         for slot in new.__slots__:
             assert not isinstance(new[slot], dict)
 
-    def test_slot_behaviour(self, message, mro_slots):
-        for attr in message.__slots__:
-            assert getattr(message, attr, "err") != "err", f"got extra slot '{attr}'"
-        assert len(mro_slots(message)) == len(set(mro_slots(message))), "duplicate slot"
+    def test_de_json_localization(self, bot, raw_bot, tz_bot):
+        json_dict = {
+            "message_id": 12,
+            "from_user": None,
+            "date": int(datetime.now().timestamp()),
+            "chat": None,
+            "edit_date": int(datetime.now().timestamp()),
+            "forward_date": int(datetime.now().timestamp()),
+        }
+
+        message_raw = Message.de_json(json_dict, raw_bot)
+        message_bot = Message.de_json(json_dict, bot)
+        message_tz = Message.de_json(json_dict, tz_bot)
+
+        # comparing utcoffsets because comparing timezones is unpredicatable
+        date_offset = message_tz.date.utcoffset()
+        date_tz_bot_offset = tz_bot.defaults.tzinfo.utcoffset(message_tz.date.replace(tzinfo=None))
+
+        edit_date_offset = message_tz.edit_date.utcoffset()
+        edit_date_tz_bot_offset = tz_bot.defaults.tzinfo.utcoffset(
+            message_tz.edit_date.replace(tzinfo=None)
+        )
+
+        forward_date_offset = message_tz.forward_date.utcoffset()
+        forward_date_tz_bot_offset = tz_bot.defaults.tzinfo.utcoffset(
+            message_tz.forward_date.replace(tzinfo=None)
+        )
+
+        assert message_raw.date.tzinfo == UTC
+        assert message_bot.date.tzinfo == UTC
+        assert date_offset == date_tz_bot_offset
+
+        assert message_raw.edit_date.tzinfo == UTC
+        assert message_bot.edit_date.tzinfo == UTC
+        assert edit_date_offset == edit_date_tz_bot_offset
+
+        assert message_raw.forward_date.tzinfo == UTC
+        assert message_bot.forward_date.tzinfo == UTC
+        assert forward_date_offset == forward_date_tz_bot_offset
+
+    def test_equality(self):
+        id_ = 1
+        a = Message(id_, self.date, self.chat, from_user=self.from_user)
+        b = Message(id_, self.date, self.chat, from_user=self.from_user)
+        c = Message(id_, self.date, Chat(123, Chat.GROUP), from_user=User(0, "", False))
+        d = Message(0, self.date, self.chat, from_user=self.from_user)
+        e = Update(id_)
+
+        assert a == b
+        assert hash(a) == hash(b)
+        assert a is not b
+
+        assert a != c
+        assert hash(a) != hash(c)
+
+        assert a != d
+        assert hash(a) != hash(d)
+
+        assert a != e
+        assert hash(a) != hash(e)
 
     async def test_parse_entity(self):
         text = (
@@ -424,7 +515,8 @@ class TestMessage:
             r"<pre>`\pre</pre>. http://google.com "
             "and <i>bold <b>nested in <s>strk&gt;trgh</s> nested in</b> italic</i>. "
             '<pre><code class="python">Python pre</code></pre>. '
-            '<span class="tg-spoiler">Spoiled</span>.'
+            '<span class="tg-spoiler">Spoiled</span>. '
+            '<tg-emoji emoji-id="1">👍</tg-emoji>.'
         )
         text_html = self.test_message_v2.text_html
         assert text_html == test_html_string
@@ -443,7 +535,8 @@ class TestMessage:
             r'<pre>`\pre</pre>. <a href="http://google.com">http://google.com</a> '
             "and <i>bold <b>nested in <s>strk&gt;trgh</s> nested in</b> italic</i>. "
             '<pre><code class="python">Python pre</code></pre>. '
-            '<span class="tg-spoiler">Spoiled</span>.'
+            '<span class="tg-spoiler">Spoiled</span>. '
+            '<tg-emoji emoji-id="1">👍</tg-emoji>.'
         )
         text_html = self.test_message_v2.text_html_urled
         assert text_html == test_html_string
@@ -464,7 +557,7 @@ class TestMessage:
             "[links](http://github.com/abc\\\\\\)def), "
             "[text\\-mention](tg://user?id=123456789) and ```\\`\\\\pre```\\. "
             r"http://google\.com and _bold *nested in ~strk\>trgh~ nested in* italic_\. "
-            "```python\nPython pre```\\. ||Spoiled||\\."
+            "```python\nPython pre```\\. ||Spoiled||\\. ![👍](tg://emoji?id=1)\\."
         )
         text_markdown = self.test_message_v2.text_markdown_v2
         assert text_markdown == test_md_string
@@ -475,19 +568,19 @@ class TestMessage:
             MessageEntity(MessageEntity.BOLD, offset=0, length=4),
             MessageEntity(MessageEntity.ITALIC, offset=0, length=4),
         ]
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Nested entities are not supported for"):
             assert message.text_markdown
 
         message.entities = [MessageEntity(MessageEntity.UNDERLINE, offset=0, length=4)]
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Underline entities are not supported for"):
             message.text_markdown
 
         message.entities = [MessageEntity(MessageEntity.STRIKETHROUGH, offset=0, length=4)]
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Strikethrough entities are not supported for"):
             message.text_markdown
 
         message.entities = [MessageEntity(MessageEntity.SPOILER, offset=0, length=4)]
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Spoiler entities are not supported for"):
             message.text_markdown
 
         message.entities = []
@@ -514,7 +607,8 @@ class TestMessage:
             "[links](http://github.com/abc\\\\\\)def), "
             "[text\\-mention](tg://user?id=123456789) and ```\\`\\\\pre```\\. "
             r"[http://google\.com](http://google.com) and _bold *nested in ~strk\>trgh~ "
-            "nested in* italic_\\. ```python\nPython pre```\\. ||Spoiled||\\."
+            "nested in* italic_\\. ```python\nPython pre```\\. ||Spoiled||\\. "
+            "![👍](tg://emoji?id=1)\\."
         )
         text_markdown = self.test_message_v2.text_markdown_v2_urled
         assert text_markdown == test_md_string
@@ -538,24 +632,79 @@ class TestMessage:
         expected = b"\\U0001f469\\u200d\\U0001f469\\u200d *ABC*".decode("unicode-escape")
         bold_entity = MessageEntity(type=MessageEntity.BOLD, offset=7, length=3)
         message = Message(
-            1, self.from_user, self.date, self.chat, text=text, entities=[bold_entity]
+            1, self.date, self.chat, self.from_user, text=text, entities=[bold_entity]
         )
         assert expected == message.text_markdown
 
     @pytest.mark.parametrize(
         "type_",
         argvalues=[
-            "text_html",
-            "text_html_urled",
             "text_markdown",
             "text_markdown_urled",
+        ],
+    )
+    def test_text_custom_emoji_md_v1(self, type_, recwarn):
+        text = "Look a custom emoji: 😎"
+        expected = "Look a custom emoji: 😎"
+        emoji_entity = MessageEntity(
+            type=MessageEntity.CUSTOM_EMOJI,
+            offset=21,
+            length=2,
+            custom_emoji_id="5472409228461217725",
+        )
+        message = Message(
+            1,
+            from_user=self.from_user,
+            date=self.date,
+            chat=self.chat,
+            text=text,
+            entities=[emoji_entity],
+        )
+        assert expected == getattr(message, type_)
+
+        assert len(recwarn) == 1
+        assert recwarn[0].category is PTBDeprecationWarning
+        assert str(recwarn[0].message).startswith(
+            "Custom emoji entities are not supported for Markdown version 1"
+        )
+        assert recwarn[0].filename == __file__
+
+    @pytest.mark.parametrize(
+        "type_",
+        argvalues=[
             "text_markdown_v2",
             "text_markdown_v2_urled",
         ],
     )
-    def test_text_custom_emoji(self, type_):
+    def test_text_custom_emoji_md_v2(self, type_):
         text = "Look a custom emoji: 😎"
-        expected = "Look a custom emoji: 😎"
+        expected = "Look a custom emoji: ![😎](tg://emoji?id=5472409228461217725)"
+        emoji_entity = MessageEntity(
+            type=MessageEntity.CUSTOM_EMOJI,
+            offset=21,
+            length=2,
+            custom_emoji_id="5472409228461217725",
+        )
+        message = Message(
+            1,
+            from_user=self.from_user,
+            date=self.date,
+            chat=self.chat,
+            text=text,
+            entities=[emoji_entity],
+        )
+        assert expected == message[type_]
+
+    @pytest.mark.parametrize(
+        "type_",
+        argvalues=[
+            "text_html",
+            "text_html_urled",
+        ],
+    )
+    def test_text_custom_emoji_html(self, type_):
+        text = "Look a custom emoji: 😎"
+        expected = 'Look a custom emoji: <tg-emoji emoji-id="5472409228461217725">😎</tg-emoji>'
         emoji_entity = MessageEntity(
             type=MessageEntity.CUSTOM_EMOJI,
             offset=21,
@@ -581,7 +730,8 @@ class TestMessage:
             r"<pre>`\pre</pre>. http://google.com "
             "and <i>bold <b>nested in <s>strk&gt;trgh</s> nested in</b> italic</i>. "
             '<pre><code class="python">Python pre</code></pre>. '
-            '<span class="tg-spoiler">Spoiled</span>.'
+            '<span class="tg-spoiler">Spoiled</span>. '
+            '<tg-emoji emoji-id="1">👍</tg-emoji>.'
         )
         caption_html = self.test_message_v2.caption_html
         assert caption_html == test_html_string
@@ -600,7 +750,8 @@ class TestMessage:
             r'<pre>`\pre</pre>. <a href="http://google.com">http://google.com</a> '
             "and <i>bold <b>nested in <s>strk&gt;trgh</s> nested in</b> italic</i>. "
             '<pre><code class="python">Python pre</code></pre>. '
-            '<span class="tg-spoiler">Spoiled</span>.'
+            '<span class="tg-spoiler">Spoiled</span>. '
+            '<tg-emoji emoji-id="1">👍</tg-emoji>.'
         )
         caption_html = self.test_message_v2.caption_html_urled
         assert caption_html == test_html_string
@@ -621,7 +772,7 @@ class TestMessage:
             "[links](http://github.com/abc\\\\\\)def), "
             "[text\\-mention](tg://user?id=123456789) and ```\\`\\\\pre```\\. "
             r"http://google\.com and _bold *nested in ~strk\>trgh~ nested in* italic_\. "
-            "```python\nPython pre```\\. ||Spoiled||\\."
+            "```python\nPython pre```\\. ||Spoiled||\\. ![👍](tg://emoji?id=1)\\."
         )
         caption_markdown = self.test_message_v2.caption_markdown_v2
         assert caption_markdown == test_md_string
@@ -648,7 +799,8 @@ class TestMessage:
             "[links](http://github.com/abc\\\\\\)def), "
             "[text\\-mention](tg://user?id=123456789) and ```\\`\\\\pre```\\. "
             r"[http://google\.com](http://google.com) and _bold *nested in ~strk\>trgh~ "
-            "nested in* italic_\\. ```python\nPython pre```\\. ||Spoiled||\\."
+            "nested in* italic_\\. ```python\nPython pre```\\. ||Spoiled||\\. "
+            "![👍](tg://emoji?id=1)\\."
         )
         caption_markdown = self.test_message_v2.caption_markdown_v2_urled
         assert caption_markdown == test_md_string
@@ -684,17 +836,72 @@ class TestMessage:
     @pytest.mark.parametrize(
         "type_",
         argvalues=[
-            "caption_html",
-            "caption_html_urled",
             "caption_markdown",
             "caption_markdown_urled",
+        ],
+    )
+    def test_caption_custom_emoji_md_v1(self, type_, recwarn):
+        caption = "Look a custom emoji: 😎"
+        expected = "Look a custom emoji: 😎"
+        emoji_entity = MessageEntity(
+            type=MessageEntity.CUSTOM_EMOJI,
+            offset=21,
+            length=2,
+            custom_emoji_id="5472409228461217725",
+        )
+        message = Message(
+            1,
+            from_user=self.from_user,
+            date=self.date,
+            chat=self.chat,
+            caption=caption,
+            caption_entities=[emoji_entity],
+        )
+        assert expected == getattr(message, type_)
+
+        assert len(recwarn) == 1
+        assert recwarn[0].category is PTBDeprecationWarning
+        assert str(recwarn[0].message).startswith(
+            "Custom emoji entities are not supported for Markdown version 1"
+        )
+        assert recwarn[0].filename == __file__
+
+    @pytest.mark.parametrize(
+        "type_",
+        argvalues=[
             "caption_markdown_v2",
             "caption_markdown_v2_urled",
         ],
     )
-    def test_caption_custom_emoji(self, type_):
+    def test_caption_custom_emoji_md_v2(self, type_):
         caption = "Look a custom emoji: 😎"
-        expected = "Look a custom emoji: 😎"
+        expected = "Look a custom emoji: ![😎](tg://emoji?id=5472409228461217725)"
+        emoji_entity = MessageEntity(
+            type=MessageEntity.CUSTOM_EMOJI,
+            offset=21,
+            length=2,
+            custom_emoji_id="5472409228461217725",
+        )
+        message = Message(
+            1,
+            from_user=self.from_user,
+            date=self.date,
+            chat=self.chat,
+            caption=caption,
+            caption_entities=[emoji_entity],
+        )
+        assert expected == message[type_]
+
+    @pytest.mark.parametrize(
+        "type_",
+        argvalues=[
+            "caption_html",
+            "caption_html_urled",
+        ],
+    )
+    def test_caption_custom_emoji_html(self, type_):
+        caption = "Look a custom emoji: 😎"
+        expected = 'Look a custom emoji: <tg-emoji emoji-id="5472409228461217725">😎</tg-emoji>'
         emoji_entity = MessageEntity(
             type=MessageEntity.CUSTOM_EMOJI,
             offset=21,
@@ -734,7 +941,7 @@ class TestMessage:
         assert message.link == f"https://t.me/{message.chat.username}/{message.message_id}"
 
     @pytest.mark.parametrize(
-        "type_, id_", argvalues=[(Chat.CHANNEL, -1003), (Chat.SUPERGROUP, -1003)]
+        ("type_", "id_"), argvalues=[(Chat.CHANNEL, -1003), (Chat.SUPERGROUP, -1003)]
     )
     def test_link_with_id(self, message, type_, id_):
         message.chat.username = None
@@ -743,7 +950,21 @@ class TestMessage:
         # The leading - for group ids/ -100 for supergroup ids isn't supposed to be in the link
         assert message.link == f"https://t.me/c/{3}/{message.message_id}"
 
-    @pytest.mark.parametrize("id_, username", argvalues=[(None, "username"), (-3, None)])
+    def test_link_with_topics(self, message):
+        message.chat.username = None
+        message.chat.id = -1003
+        message.is_topic_message = True
+        message.message_thread_id = 123
+        assert message.link == f"https://t.me/c/3/{message.message_id}?thread=123"
+
+    def test_link_with_reply(self, message):
+        message.chat.username = None
+        message.chat.id = -1003
+        message.reply_to_message = Message(7, self.from_user, self.date, self.chat, text="Reply")
+        message.message_thread_id = 123
+        assert message.link == f"https://t.me/c/3/{message.message_id}?thread=123"
+
+    @pytest.mark.parametrize(("id_", "username"), argvalues=[(None, "username"), (-3, None)])
     def test_link_private_chats(self, message, id_, username):
         message.chat.type = Chat.PRIVATE
         message.chat.id = id_
@@ -852,7 +1073,7 @@ class TestMessage:
             "[links](http://github.com/abc\\\\\\)def), "
             "[text\\-mention](tg://user?id=123456789) and ```\\`\\\\pre```\\. "
             r"http://google\.com and _bold *nested in ~strk\>trgh~ nested in* italic_\. "
-            "```python\nPython pre```\\. ||Spoiled||\\."
+            "```python\nPython pre```\\. ||Spoiled||\\. ![👍](tg://emoji?id=1)\\."
         )
 
         async def make_assertion(*_, **kwargs):
@@ -892,7 +1113,8 @@ class TestMessage:
             r"<pre>`\pre</pre>. http://google.com "
             "and <i>bold <b>nested in <s>strk&gt;trgh</s> nested in</b> italic</i>. "
             '<pre><code class="python">Python pre</code></pre>. '
-            '<span class="tg-spoiler">Spoiled</span>.'
+            '<span class="tg-spoiler">Spoiled</span>. '
+            '<tg-emoji emoji-id="1">👍</tg-emoji>.'
         )
 
         async def make_assertion(*_, **kwargs):
@@ -1275,7 +1497,7 @@ class TestMessage:
             quote=True,
         )
 
-    @pytest.mark.parametrize("disable_notification,protected", [(False, True), (True, False)])
+    @pytest.mark.parametrize(("disable_notification", "protected"), [(False, True), (True, False)])
     async def test_forward(self, monkeypatch, message, disable_notification, protected):
         async def make_assertion(*_, **kwargs):
             chat_id = kwargs["chat_id"] == 123456
@@ -1297,7 +1519,7 @@ class TestMessage:
         )
         assert not await message.forward(635241)
 
-    @pytest.mark.parametrize("disable_notification,protected", [(True, False), (False, True)])
+    @pytest.mark.parametrize(("disable_notification", "protected"), [(True, False), (False, True)])
     async def test_copy(self, monkeypatch, message, disable_notification, protected):
         keyboard = [[1, 2]]
 
@@ -1338,7 +1560,7 @@ class TestMessage:
         )
         assert not await message.copy(635241)
 
-    @pytest.mark.parametrize("disable_notification,protected", [(True, False), (False, True)])
+    @pytest.mark.parametrize(("disable_notification", "protected"), [(True, False), (False, True)])
     async def test_reply_copy(self, monkeypatch, message, disable_notification, protected):
         keyboard = [[1, 2]]
 
@@ -1684,33 +1906,120 @@ class TestMessage:
         finally:
             message.get_bot()._defaults = None
 
-    def test_equality(self):
-        id_ = 1
-        a = Message(
-            id_,
-            self.date,
-            self.chat,
-            from_user=self.from_user,
+    async def test_edit_forum_topic(self, monkeypatch, message):
+        async def make_assertion(*_, **kwargs):
+            return (
+                kwargs["chat_id"] == message.chat_id
+                and kwargs["message_thread_id"] == message.message_thread_id
+                and kwargs["name"] == "New Name"
+                and kwargs["icon_custom_emoji_id"] == "12345"
+            )
+
+        assert check_shortcut_signature(
+            Message.edit_forum_topic, Bot.edit_forum_topic, ["chat_id", "message_thread_id"], []
         )
-        b = Message(
-            id_,
-            self.date,
-            self.chat,
-            from_user=self.from_user,
+        assert await check_shortcut_call(
+            message.edit_forum_topic,
+            message.get_bot(),
+            "edit_forum_topic",
+            shortcut_kwargs=["chat_id", "message_thread_id"],
         )
-        c = Message(id_, self.date, Chat(123, Chat.GROUP), from_user=User(0, "", False))
-        d = Message(0, self.date, self.chat, from_user=self.from_user)
-        e = Update(id_)
+        assert await check_defaults_handling(message.edit_forum_topic, message.get_bot())
 
-        assert a == b
-        assert hash(a) == hash(b)
-        assert a is not b
+        monkeypatch.setattr(message.get_bot(), "edit_forum_topic", make_assertion)
+        assert await message.edit_forum_topic(name="New Name", icon_custom_emoji_id="12345")
 
-        assert a != c
-        assert hash(a) != hash(c)
+    async def test_close_forum_topic(self, monkeypatch, message):
+        async def make_assertion(*_, **kwargs):
+            return (
+                kwargs["chat_id"] == message.chat_id
+                and kwargs["message_thread_id"] == message.message_thread_id
+            )
 
-        assert a != d
-        assert hash(a) != hash(d)
+        assert check_shortcut_signature(
+            Message.close_forum_topic, Bot.close_forum_topic, ["chat_id", "message_thread_id"], []
+        )
+        assert await check_shortcut_call(
+            message.close_forum_topic,
+            message.get_bot(),
+            "close_forum_topic",
+            shortcut_kwargs=["chat_id", "message_thread_id"],
+        )
+        assert await check_defaults_handling(message.close_forum_topic, message.get_bot())
 
-        assert a != e
-        assert hash(a) != hash(e)
+        monkeypatch.setattr(message.get_bot(), "close_forum_topic", make_assertion)
+        assert await message.close_forum_topic()
+
+    async def test_reopen_forum_topic(self, monkeypatch, message):
+        async def make_assertion(*_, **kwargs):
+            return (
+                kwargs["chat_id"] == message.chat_id
+                and kwargs["message_thread_id"] == message.message_thread_id
+            )
+
+        assert check_shortcut_signature(
+            Message.reopen_forum_topic,
+            Bot.reopen_forum_topic,
+            ["chat_id", "message_thread_id"],
+            [],
+        )
+        assert await check_shortcut_call(
+            message.reopen_forum_topic,
+            message.get_bot(),
+            "reopen_forum_topic",
+            shortcut_kwargs=["chat_id", "message_thread_id"],
+        )
+        assert await check_defaults_handling(message.reopen_forum_topic, message.get_bot())
+
+        monkeypatch.setattr(message.get_bot(), "reopen_forum_topic", make_assertion)
+        assert await message.reopen_forum_topic()
+
+    async def test_delete_forum_topic(self, monkeypatch, message):
+        async def make_assertion(*_, **kwargs):
+            return (
+                kwargs["chat_id"] == message.chat_id
+                and kwargs["message_thread_id"] == message.message_thread_id
+            )
+
+        assert check_shortcut_signature(
+            Message.delete_forum_topic,
+            Bot.delete_forum_topic,
+            ["chat_id", "message_thread_id"],
+            [],
+        )
+        assert await check_shortcut_call(
+            message.delete_forum_topic,
+            message.get_bot(),
+            "delete_forum_topic",
+            shortcut_kwargs=["chat_id", "message_thread_id"],
+        )
+        assert await check_defaults_handling(message.delete_forum_topic, message.get_bot())
+
+        monkeypatch.setattr(message.get_bot(), "delete_forum_topic", make_assertion)
+        assert await message.delete_forum_topic()
+
+    async def test_unpin_all_forum_topic_messages(self, monkeypatch, message):
+        async def make_assertion(*_, **kwargs):
+            return (
+                kwargs["chat_id"] == message.chat_id
+                and kwargs["message_thread_id"] == message.message_thread_id
+            )
+
+        assert check_shortcut_signature(
+            Message.unpin_all_forum_topic_messages,
+            Bot.unpin_all_forum_topic_messages,
+            ["chat_id", "message_thread_id"],
+            [],
+        )
+        assert await check_shortcut_call(
+            message.unpin_all_forum_topic_messages,
+            message.get_bot(),
+            "unpin_all_forum_topic_messages",
+            shortcut_kwargs=["chat_id", "message_thread_id"],
+        )
+        assert await check_defaults_handling(
+            message.unpin_all_forum_topic_messages, message.get_bot()
+        )
+
+        monkeypatch.setattr(message.get_bot(), "unpin_all_forum_topic_messages", make_assertion)
+        assert await message.unpin_all_forum_topic_messages()

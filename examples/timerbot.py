@@ -16,6 +16,10 @@ Usage:
 Basic Alarm Bot example, sends a message after a set time.
 Press Ctrl-C on the command line or send a signal to the process to stop the
 bot.
+
+Note:
+To use the JobQueue, you must install PTB via
+`pip install "python-telegram-bot[job-queue]"`
 """
 
 import logging
@@ -110,7 +114,7 @@ def main() -> None:
     application.add_handler(CommandHandler("unset", unset))
 
     # Run the bot until the user presses Ctrl-C
-    application.run_polling()
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":

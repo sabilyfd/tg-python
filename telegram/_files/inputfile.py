@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -18,16 +18,14 @@
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 """This module contains an object that represents a Telegram InputFile."""
 
-import logging
 import mimetypes
-from pathlib import Path
 from typing import IO, Optional, Union
 from uuid import uuid4
 
+from telegram._utils.files import load_file
 from telegram._utils.types import FieldTuple
 
 _DEFAULT_MIME_TYPE = "application/octet-stream"
-logger = logging.getLogger(__name__)
 
 
 class InputFile:
@@ -68,29 +66,29 @@ class InputFile:
     __slots__ = ("filename", "attach_name", "input_file_content", "mimetype")
 
     def __init__(
-        self, obj: Union[IO[bytes], bytes, str], filename: str = None, attach: bool = False
+        self,
+        obj: Union[IO[bytes], bytes, str],
+        filename: Optional[str] = None,
+        attach: bool = False,
     ):
         if isinstance(obj, bytes):
-            self.input_file_content = obj
+            self.input_file_content: bytes = obj
         elif isinstance(obj, str):
             self.input_file_content = obj.encode("utf-8")
         else:
-            self.input_file_content = obj.read()
+            reported_filename, self.input_file_content = load_file(obj)
+            filename = filename or reported_filename
+
         self.attach_name: Optional[str] = "attached" + uuid4().hex if attach else None
 
-        if (
-            not filename
-            and hasattr(obj, "name")
-            and not isinstance(obj.name, int)  # type: ignore[union-attr]
-        ):
-            filename = Path(obj.name).name  # type: ignore[union-attr]
-
         if filename:
-            self.mimetype = mimetypes.guess_type(filename, strict=False)[0] or _DEFAULT_MIME_TYPE
+            self.mimetype: str = (
+                mimetypes.guess_type(filename, strict=False)[0] or _DEFAULT_MIME_TYPE
+            )
         else:
             self.mimetype = _DEFAULT_MIME_TYPE
 
-        self.filename = filename or self.mimetype.replace("/", ".")
+        self.filename: str = filename or self.mimetype.replace("/", ".")
 
     @property
     def field_tuple(self) -> FieldTuple:

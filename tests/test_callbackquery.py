@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -17,39 +17,49 @@
 # You should have received a copy of the GNU Lesser Public License
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 
+from datetime import datetime
+
 import pytest
 
 from telegram import Audio, Bot, CallbackQuery, Chat, Message, User
-from tests.conftest import check_defaults_handling, check_shortcut_call, check_shortcut_signature
+from tests.auxil.bot_method_checks import (
+    check_defaults_handling,
+    check_shortcut_call,
+    check_shortcut_signature,
+)
+from tests.auxil.slots import mro_slots
 
 
-@pytest.fixture(scope="function", params=["message", "inline"])
+@pytest.fixture(params=["message", "inline"])
 def callback_query(bot, request):
     cbq = CallbackQuery(
-        TestCallbackQuery.id_,
-        TestCallbackQuery.from_user,
-        TestCallbackQuery.chat_instance,
-        data=TestCallbackQuery.data,
-        game_short_name=TestCallbackQuery.game_short_name,
-        bot=bot,
+        TestCallbackQueryBase.id_,
+        TestCallbackQueryBase.from_user,
+        TestCallbackQueryBase.chat_instance,
+        data=TestCallbackQueryBase.data,
+        game_short_name=TestCallbackQueryBase.game_short_name,
     )
+    cbq.set_bot(bot)
+    cbq._unfreeze()
     if request.param == "message":
-        cbq.message = TestCallbackQuery.message
+        cbq.message = TestCallbackQueryBase.message
         cbq.message.set_bot(bot)
     else:
-        cbq.inline_message_id = TestCallbackQuery.inline_message_id
+        cbq.inline_message_id = TestCallbackQueryBase.inline_message_id
     return cbq
 
 
-class TestCallbackQuery:
+class TestCallbackQueryBase:
     id_ = "id"
     from_user = User(1, "test_user", False)
     chat_instance = "chat_instance"
-    message = Message(3, None, Chat(4, "private"), from_user=User(5, "bot", False))
+    message = Message(3, datetime.utcnow(), Chat(4, "private"), from_user=User(5, "bot", False))
     data = "data"
     inline_message_id = "inline_message_id"
     game_short_name = "the_game"
 
+
+class TestCallbackQueryWithoutRequest(TestCallbackQueryBase):
     @staticmethod
     def skip_params(callback_query: CallbackQuery):
         if callback_query.inline_message_id:
@@ -74,7 +84,7 @@ class TestCallbackQuery:
             message_id = kwargs["message_id"] == callback_query.message.message_id
         return id_ and chat_id and message_id
 
-    def test_slot_behaviour(self, callback_query, mro_slots):
+    def test_slot_behaviour(self, callback_query):
         for attr in callback_query.__slots__:
             assert getattr(callback_query, attr, "err") != "err", f"got extra slot '{attr}'"
         assert len(mro_slots(callback_query)) == len(set(mro_slots(callback_query))), "same slot"
@@ -90,6 +100,7 @@ class TestCallbackQuery:
             "game_short_name": self.game_short_name,
         }
         callback_query = CallbackQuery.de_json(json_dict, bot)
+        assert callback_query.api_kwargs == {}
 
         assert callback_query.id == self.id_
         assert callback_query.from_user == self.from_user
@@ -112,6 +123,26 @@ class TestCallbackQuery:
             assert callback_query_dict["inline_message_id"] == callback_query.inline_message_id
         assert callback_query_dict["data"] == callback_query.data
         assert callback_query_dict["game_short_name"] == callback_query.game_short_name
+
+    def test_equality(self):
+        a = CallbackQuery(self.id_, self.from_user, "chat")
+        b = CallbackQuery(self.id_, self.from_user, "chat")
+        c = CallbackQuery(self.id_, None, "")
+        d = CallbackQuery("", None, "chat")
+        e = Audio(self.id_, "unique_id", 1)
+
+        assert a == b
+        assert hash(a) == hash(b)
+        assert a is not b
+
+        assert a == c
+        assert hash(a) == hash(c)
+
+        assert a != d
+        assert hash(a) != hash(d)
+
+        assert a != e
+        assert hash(a) != hash(e)
 
     async def test_answer(self, monkeypatch, callback_query):
         async def make_assertion(*_, **kwargs):
@@ -266,8 +297,7 @@ class TestCallbackQuery:
 
     async def test_stop_message_live_location(self, monkeypatch, callback_query):
         async def make_assertion(*_, **kwargs):
-            ids = self.check_passed_ids(callback_query, kwargs)
-            return ids
+            return self.check_passed_ids(callback_query, kwargs)
 
         assert check_shortcut_signature(
             CallbackQuery.stop_message_live_location,
@@ -439,23 +469,3 @@ class TestCallbackQuery:
 
         monkeypatch.setattr(callback_query.get_bot(), "copy_message", make_assertion)
         assert await callback_query.copy_message(1)
-
-    def test_equality(self):
-        a = CallbackQuery(self.id_, self.from_user, "chat")
-        b = CallbackQuery(self.id_, self.from_user, "chat")
-        c = CallbackQuery(self.id_, None, "")
-        d = CallbackQuery("", None, "chat")
-        e = Audio(self.id_, "unique_id", 1)
-
-        assert a == b
-        assert hash(a) == hash(b)
-        assert a is not b
-
-        assert a == c
-        assert hash(a) == hash(c)
-
-        assert a != d
-        assert hash(a) != hash(d)
-
-        assert a != e
-        assert hash(a) != hash(e)

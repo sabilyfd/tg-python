@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -17,13 +17,13 @@
 # You should have received a copy of the GNU Lesser Public License
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 """This module contains objects related to Telegram video chats."""
-
 import datetime as dtm
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Optional, Sequence, Tuple
 
 from telegram._telegramobject import TelegramObject
 from telegram._user import User
-from telegram._utils.datetime import from_timestamp, to_timestamp
+from telegram._utils.argumentparsing import parse_sequence_arg
+from telegram._utils.datetime import extract_tzinfo_from_defaults, from_timestamp
 from telegram._utils.types import JSONDict
 
 if TYPE_CHECKING:
@@ -42,8 +42,10 @@ class VideoChatStarted(TelegramObject):
 
     __slots__ = ()
 
-    def __init__(self, **_kwargs: object):  # skipcq: PTC-W0049
-        pass
+    def __init__(self, *, api_kwargs: Optional[JSONDict] = None) -> None:
+        super().__init__(api_kwargs=api_kwargs)
+
+        self._freeze()
 
 
 class VideoChatEnded(TelegramObject):
@@ -61,7 +63,6 @@ class VideoChatEnded(TelegramObject):
 
     Args:
         duration (:obj:`int`): Voice chat duration in seconds.
-        **kwargs (:obj:`dict`): Arbitrary keyword arguments.
 
     Attributes:
         duration (:obj:`int`): Voice chat duration in seconds.
@@ -70,9 +71,17 @@ class VideoChatEnded(TelegramObject):
 
     __slots__ = ("duration",)
 
-    def __init__(self, duration: int, **_kwargs: object) -> None:
-        self.duration = duration
+    def __init__(
+        self,
+        duration: int,
+        *,
+        api_kwargs: Optional[JSONDict] = None,
+    ) -> None:
+        super().__init__(api_kwargs=api_kwargs)
+        self.duration: int = duration
         self._id_attrs = (self.duration,)
+
+        self._freeze()
 
 
 class VideoChatParticipantsInvited(TelegramObject):
@@ -87,19 +96,32 @@ class VideoChatParticipantsInvited(TelegramObject):
         This class was renamed from ``VoiceChatParticipantsInvited`` in accordance to Bot API 6.0.
 
     Args:
-        users (List[:class:`telegram.User`]): New members that were invited to the video chat.
-        **kwargs (:obj:`dict`): Arbitrary keyword arguments.
+        users (Sequence[:class:`telegram.User`]): New members that were invited to the video chat.
+
+            .. versionchanged:: 20.0
+                |sequenceclassargs|
 
     Attributes:
-        users (List[:class:`telegram.User`]): New members that were invited to the video chat.
+        users (Tuple[:class:`telegram.User`]): New members that were invited to the video chat.
+
+            .. versionchanged:: 20.0
+                |tupleclassattrs|
 
     """
 
     __slots__ = ("users",)
 
-    def __init__(self, users: List[User], **_kwargs: object) -> None:
-        self.users = users
+    def __init__(
+        self,
+        users: Sequence[User],
+        *,
+        api_kwargs: Optional[JSONDict] = None,
+    ) -> None:
+        super().__init__(api_kwargs=api_kwargs)
+        self.users: Tuple[User, ...] = parse_sequence_arg(users)
         self._id_attrs = (self.users,)
+
+        self._freeze()
 
     @classmethod
     def de_json(
@@ -112,18 +134,7 @@ class VideoChatParticipantsInvited(TelegramObject):
             return None
 
         data["users"] = User.de_list(data.get("users", []), bot)
-        return cls(**data)
-
-    def to_dict(self) -> JSONDict:
-        """See :meth:`telegram.TelegramObject.to_dict`."""
-        data = super().to_dict()
-
-        if self.users is not None:
-            data["users"] = [u.to_dict() for u in self.users]
-        return data
-
-    def __hash__(self) -> int:
-        return hash(None) if self.users is None else hash(tuple(self.users))
+        return super().de_json(data=data, bot=bot)
 
 
 class VideoChatScheduled(TelegramObject):
@@ -138,20 +149,32 @@ class VideoChatScheduled(TelegramObject):
     Args:
         start_date (:obj:`datetime.datetime`): Point in time (Unix timestamp) when the video
             chat is supposed to be started by a chat administrator
-        **kwargs (:obj:`dict`): Arbitrary keyword arguments.
 
+            .. versionchanged:: 20.3
+                |datetime_localization|
     Attributes:
         start_date (:obj:`datetime.datetime`): Point in time (Unix timestamp) when the video
             chat is supposed to be started by a chat administrator
+
+            .. versionchanged:: 20.3
+                |datetime_localization|
 
     """
 
     __slots__ = ("start_date",)
 
-    def __init__(self, start_date: dtm.datetime, **_kwargs: object) -> None:
-        self.start_date = start_date
+    def __init__(
+        self,
+        start_date: dtm.datetime,
+        *,
+        api_kwargs: Optional[JSONDict] = None,
+    ) -> None:
+        super().__init__(api_kwargs=api_kwargs)
+        self.start_date: dtm.datetime = start_date
 
         self._id_attrs = (self.start_date,)
+
+        self._freeze()
 
     @classmethod
     def de_json(cls, data: Optional[JSONDict], bot: "Bot") -> Optional["VideoChatScheduled"]:
@@ -161,15 +184,9 @@ class VideoChatScheduled(TelegramObject):
         if not data:
             return None
 
-        data["start_date"] = from_timestamp(data["start_date"])
+        # Get the local timezone from the bot if it has defaults
+        loc_tzinfo = extract_tzinfo_from_defaults(bot)
 
-        return cls(**data, bot=bot)
+        data["start_date"] = from_timestamp(data["start_date"], tzinfo=loc_tzinfo)
 
-    def to_dict(self) -> JSONDict:
-        """See :meth:`telegram.TelegramObject.to_dict`."""
-        data = super().to_dict()
-
-        # Required
-        data["start_date"] = to_timestamp(self.start_date)
-
-        return data
+        return super().de_json(data=data, bot=bot)

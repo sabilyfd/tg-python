@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -16,16 +16,16 @@
 #
 # You should have received a copy of the GNU Lesser Public License
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
-"""This module contains the CommandHandler and PrefixHandler classes."""
+"""This module contains the CommandHandler class."""
 import re
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, TypeVar, Union
+from typing import TYPE_CHECKING, Any, FrozenSet, List, Optional, Tuple, TypeVar, Union
 
 from telegram import MessageEntity, Update
 from telegram._utils.defaultvalue import DEFAULT_TRUE
-from telegram._utils.types import SCT, DVInput
+from telegram._utils.types import SCT, DVType
 from telegram.ext import filters as filters_module
-from telegram.ext._handler import BaseHandler
-from telegram.ext._utils.types import CCT, HandlerCallback
+from telegram.ext._basehandler import BaseHandler
+from telegram.ext._utils.types import CCT, FilterDataDict, HandlerCallback
 
 if TYPE_CHECKING:
     from telegram.ext import Application
@@ -57,6 +57,10 @@ class CommandHandler(BaseHandler[Update, CCT]):
         When setting :paramref:`block` to :obj:`False`, you cannot rely on adding custom
         attributes to :class:`telegram.ext.CallbackContext`. See its docs for more info.
 
+    Examples:
+        * :any:`Timer Bot <examples.timerbot>`
+        * :any:`Error Handler Bot <examples.errorhandlerbot>`
+
     .. versionchanged:: 20.0
 
         * Renamed the attribute ``command`` to :attr:`commands`, which now is always a
@@ -66,7 +70,7 @@ class CommandHandler(BaseHandler[Update, CCT]):
     Args:
         command (:obj:`str` | Collection[:obj:`str`]):
             The command or list of commands this handler should listen for. Case-insensitive.
-            Limitations are the same as described `here <https://core.telegram.org/bots#commands>`_
+            Limitations are the same as for :attr:`telegram.BotCommand.command`.
         callback (:term:`coroutine function`): The callback function for this handler. Will be
             called when :meth:`check_update` has determined that an update should be processed by
             this handler. Callback signature::
@@ -82,6 +86,8 @@ class CommandHandler(BaseHandler[Update, CCT]):
         block (:obj:`bool`, optional): Determines whether the return value of the callback should
             be awaited before processing the next handler in
             :meth:`telegram.ext.Application.process_update`. Defaults to :obj:`True`.
+
+            .. seealso:: :wiki:`Concurrency`
 
     Raises:
         :exc:`ValueError`: When the command is too long or has illegal chars.
@@ -102,8 +108,8 @@ class CommandHandler(BaseHandler[Update, CCT]):
         self,
         command: SCT[str],
         callback: HandlerCallback[Update, CCT, RT],
-        filters: filters_module.BaseFilter = None,
-        block: DVInput[bool] = DEFAULT_TRUE,
+        filters: Optional[filters_module.BaseFilter] = None,
+        block: DVType[bool] = DEFAULT_TRUE,
     ):
         super().__init__(callback, block=block)
 
@@ -114,13 +120,15 @@ class CommandHandler(BaseHandler[Update, CCT]):
         for comm in commands:
             if not re.match(r"^[\da-z_]{1,32}$", comm):
                 raise ValueError(f"Command `{comm}` is not a valid bot command")
-        self.commands = commands
+        self.commands: FrozenSet[str] = commands
 
-        self.filters = filters if filters is not None else filters_module.UpdateType.MESSAGES
+        self.filters: filters_module.BaseFilter = (
+            filters if filters is not None else filters_module.UpdateType.MESSAGES
+        )
 
     def check_update(
         self, update: object
-    ) -> Optional[Union[bool, Tuple[List[str], Optional[Union[bool, Dict]]]]]:
+    ) -> Optional[Union[bool, Tuple[List[str], Optional[Union[bool, FilterDataDict]]]]]:
         """Determines whether an update should be passed to this handler's :attr:`callback`.
 
         Args:
@@ -160,8 +168,8 @@ class CommandHandler(BaseHandler[Update, CCT]):
     def collect_additional_context(
         self,
         context: CCT,
-        update: Update,
-        application: "Application",
+        update: Update,  # skipcq: BAN-B301
+        application: "Application[Any, CCT, Any, Any, Any, Any]",  # skipcq: BAN-B301
         check_result: Optional[Union[bool, Tuple[List[str], Optional[bool]]]],
     ) -> None:
         """Add text after the command to :attr:`CallbackContext.args` as list, split on single

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -17,14 +17,18 @@
 # You should have received a copy of the GNU Lesser Public License
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 """This module contains the classes that represent Telegram InlineQueryResultDocument"""
-
-from typing import TYPE_CHECKING, Any, List, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Sequence, Tuple
 
 from telegram._inline.inlinekeyboardmarkup import InlineKeyboardMarkup
 from telegram._inline.inlinequeryresult import InlineQueryResult
 from telegram._messageentity import MessageEntity
+from telegram._utils.argumentparsing import parse_sequence_arg
 from telegram._utils.defaultvalue import DEFAULT_NONE
-from telegram._utils.types import ODVInput
+from telegram._utils.types import JSONDict, ODVInput
+from telegram._utils.warnings_transition import (
+    warn_about_deprecated_arg_return_new_arg,
+    warn_about_deprecated_attr_in_property,
+)
 from telegram.constants import InlineQueryResultType
 
 if TYPE_CHECKING:
@@ -38,18 +42,22 @@ class InlineQueryResultDocument(InlineQueryResult):
     specified content instead of the file. Currently, only .PDF and .ZIP files can be sent
     using this method.
 
+    .. seealso:: :wiki:`Working with Files and Media <Working-with-Files-and-Media>`
+
     Args:
-        id (:obj:`str`): Unique identifier for this result, 1-64 bytes.
+        id (:obj:`str`): Unique identifier for this result,
+            :tg-const:`telegram.InlineQueryResult.MIN_ID_LENGTH`-
+            :tg-const:`telegram.InlineQueryResult.MAX_ID_LENGTH` Bytes.
         title (:obj:`str`): Title for the result.
         caption (:obj:`str`, optional): Caption of the document to be sent,
             0-:tg-const:`telegram.constants.MessageLimit.CAPTION_LENGTH` characters
             after entities parsing.
-        parse_mode (:obj:`str`, optional): Send Markdown or HTML, if you want Telegram apps to show
-            bold, italic, fixed-width text or inline URLs in the media caption. See the constants
-            in :class:`telegram.constants.ParseMode` for the available modes.
-        caption_entities (List[:class:`telegram.MessageEntity`], optional): List of special
-            entities that appear in the caption, which can be specified instead of
-            :paramref:`parse_mode`.
+        parse_mode (:obj:`str`, optional): |parse_mode|
+        caption_entities (Sequence[:class:`telegram.MessageEntity`], optional): |caption_entities|
+
+            .. versionchanged:: 20.0
+                |sequenceclassargs|
+
         document_url (:obj:`str`): A valid URL for the file.
         mime_type (:obj:`str`): Mime type of the content of the file, either "application/pdf"
             or "application/zip".
@@ -59,23 +67,44 @@ class InlineQueryResultDocument(InlineQueryResult):
         input_message_content (:class:`telegram.InputMessageContent`, optional): Content of the
             message to be sent instead of the file.
         thumb_url (:obj:`str`, optional): URL of the thumbnail (JPEG only) for the file.
+
+            .. deprecated:: 20.2
+               |thumbargumentdeprecation| :paramref:`thumbnail_url`.
         thumb_width (:obj:`int`, optional): Thumbnail width.
+
+            .. deprecated:: 20.2
+               |thumbargumentdeprecation| :paramref:`thumbnail_width`.
         thumb_height (:obj:`int`, optional): Thumbnail height.
-        **kwargs (:obj:`dict`): Arbitrary keyword arguments.
+
+            .. deprecated:: 20.2
+               |thumbargumentdeprecation| :paramref:`thumbnail_height`.
+        thumbnail_url (:obj:`str`, optional): URL of the thumbnail (JPEG only) for the file.
+
+            .. versionadded:: 20.2
+        thumbnail_width (:obj:`int`, optional): Thumbnail width.
+
+            .. versionadded:: 20.2
+        thumbnail_height (:obj:`int`, optional): Thumbnail height.
+
+            .. versionadded:: 20.2
+
 
     Attributes:
         type (:obj:`str`): :tg-const:`telegram.constants.InlineQueryResultType.DOCUMENT`.
-        id (:obj:`str`): Unique identifier for this result, 1-64 bytes.
+        id (:obj:`str`): Unique identifier for this result,
+            :tg-const:`telegram.InlineQueryResult.MIN_ID_LENGTH`-
+            :tg-const:`telegram.InlineQueryResult.MAX_ID_LENGTH` Bytes.
         title (:obj:`str`): Title for the result.
         caption (:obj:`str`): Optional. Caption of the document to be sent,
             0-:tg-const:`telegram.constants.MessageLimit.CAPTION_LENGTH` characters
             after entities parsing.
-        parse_mode (:obj:`str`): Optional. Send Markdown or HTML, if you want Telegram apps to show
-            bold, italic, fixed-width text or inline URLs in the media caption. See the constants
-            in :class:`telegram.constants.ParseMode` for the available modes.
-        caption_entities (List[:class:`telegram.MessageEntity`]): Optional. List of special
-            entities that appear in the caption, which can be specified instead of
-            :paramref:`parse_mode`.
+        parse_mode (:obj:`str`): Optional. |parse_mode|
+        caption_entities (Tuple[:class:`telegram.MessageEntity`]): Optional. |captionentitiesattr|
+
+            .. versionchanged:: 20.0
+
+                * |tupleclassattrs|
+                * |alwaystuple|
         document_url (:obj:`str`): A valid URL for the file.
         mime_type (:obj:`str`): Mime type of the content of the file, either "application/pdf"
             or "application/zip".
@@ -84,9 +113,15 @@ class InlineQueryResultDocument(InlineQueryResult):
             to the message.
         input_message_content (:class:`telegram.InputMessageContent`): Optional. Content of the
             message to be sent instead of the file.
-        thumb_url (:obj:`str`): Optional. URL of the thumbnail (JPEG only) for the file.
-        thumb_width (:obj:`int`): Optional. Thumbnail width.
-        thumb_height (:obj:`int`): Optional. Thumbnail height.
+        thumbnail_url (:obj:`str`): Optional. URL of the thumbnail (JPEG only) for the file.
+
+            .. versionadded:: 20.2
+        thumbnail_width (:obj:`int`): Optional. Thumbnail width.
+
+            .. versionadded:: 20.2
+        thumbnail_height (:obj:`int`): Optional. Thumbnail height.
+
+            .. versionadded:: 20.2
 
     """
 
@@ -94,14 +129,14 @@ class InlineQueryResultDocument(InlineQueryResult):
         "reply_markup",
         "caption_entities",
         "document_url",
-        "thumb_width",
-        "thumb_height",
+        "thumbnail_width",
+        "thumbnail_height",
         "caption",
         "title",
         "description",
         "parse_mode",
         "mime_type",
-        "thumb_url",
+        "thumbnail_url",
         "input_message_content",
     )
 
@@ -111,30 +146,95 @@ class InlineQueryResultDocument(InlineQueryResult):
         document_url: str,
         title: str,
         mime_type: str,
-        caption: str = None,
-        description: str = None,
-        reply_markup: InlineKeyboardMarkup = None,
-        input_message_content: "InputMessageContent" = None,
-        thumb_url: str = None,
-        thumb_width: int = None,
-        thumb_height: int = None,
+        caption: Optional[str] = None,
+        description: Optional[str] = None,
+        reply_markup: Optional[InlineKeyboardMarkup] = None,
+        input_message_content: Optional["InputMessageContent"] = None,
+        thumb_url: Optional[str] = None,
+        thumb_width: Optional[int] = None,
+        thumb_height: Optional[int] = None,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
-        caption_entities: Union[Tuple[MessageEntity, ...], List[MessageEntity]] = None,
-        **_kwargs: Any,
+        caption_entities: Optional[Sequence[MessageEntity]] = None,
+        thumbnail_url: Optional[str] = None,
+        thumbnail_width: Optional[int] = None,
+        thumbnail_height: Optional[int] = None,
+        *,
+        api_kwargs: Optional[JSONDict] = None,
     ):
         # Required
-        super().__init__(InlineQueryResultType.DOCUMENT, id)
-        self.document_url = document_url
-        self.title = title
-        self.mime_type = mime_type
+        super().__init__(InlineQueryResultType.DOCUMENT, id, api_kwargs=api_kwargs)
+        with self._unfrozen():
+            self.document_url: str = document_url
+            self.title: str = title
+            self.mime_type: str = mime_type
 
-        # Optionals
-        self.caption = caption
-        self.parse_mode = parse_mode
-        self.caption_entities = caption_entities
-        self.description = description
-        self.reply_markup = reply_markup
-        self.input_message_content = input_message_content
-        self.thumb_url = thumb_url
-        self.thumb_width = thumb_width
-        self.thumb_height = thumb_height
+            # Optionals
+            self.caption: Optional[str] = caption
+            self.parse_mode: ODVInput[str] = parse_mode
+            self.caption_entities: Tuple[MessageEntity, ...] = parse_sequence_arg(caption_entities)
+            self.description: Optional[str] = description
+            self.reply_markup: Optional[InlineKeyboardMarkup] = reply_markup
+            self.input_message_content: Optional[InputMessageContent] = input_message_content
+            self.thumbnail_url: Optional[str] = warn_about_deprecated_arg_return_new_arg(
+                deprecated_arg=thumb_url,
+                new_arg=thumbnail_url,
+                deprecated_arg_name="thumb_url",
+                new_arg_name="thumbnail_url",
+                bot_api_version="6.6",
+            )
+            self.thumbnail_width: Optional[int] = warn_about_deprecated_arg_return_new_arg(
+                deprecated_arg=thumb_width,
+                new_arg=thumbnail_width,
+                deprecated_arg_name="thumb_width",
+                new_arg_name="thumbnail_width",
+                bot_api_version="6.6",
+            )
+            self.thumbnail_height: Optional[int] = warn_about_deprecated_arg_return_new_arg(
+                deprecated_arg=thumb_height,
+                new_arg=thumbnail_height,
+                deprecated_arg_name="thumb_height",
+                new_arg_name="thumbnail_height",
+                bot_api_version="6.6",
+            )
+
+    @property
+    def thumb_url(self) -> Optional[str]:
+        """:obj:`str`: Optional. URL of the thumbnail (JPEG only) for the file.
+
+        .. deprecated:: 20.2
+           |thumbattributedeprecation| :attr:`thumbnail_url`.
+        """
+        warn_about_deprecated_attr_in_property(
+            deprecated_attr_name="thumb_url",
+            new_attr_name="thumbnail_url",
+            bot_api_version="6.6",
+        )
+        return self.thumbnail_url
+
+    @property
+    def thumb_width(self) -> Optional[int]:
+        """:obj:`str`: Optional. Thumbnail width.
+
+        .. deprecated:: 20.2
+           |thumbattributedeprecation| :attr:`thumbnail_width`.
+        """
+        warn_about_deprecated_attr_in_property(
+            deprecated_attr_name="thumb_width",
+            new_attr_name="thumbnail_width",
+            bot_api_version="6.6",
+        )
+        return self.thumbnail_width
+
+    @property
+    def thumb_height(self) -> Optional[int]:
+        """:obj:`str`: Optional. Thumbnail height.
+
+        .. deprecated:: 20.2
+           |thumbattributedeprecation| :attr:`thumbnail_height`.
+        """
+        warn_about_deprecated_attr_in_property(
+            deprecated_attr_name="thumb_height",
+            new_attr_name="thumbnail_height",
+            bot_api_version="6.6",
+        )
+        return self.thumbnail_height

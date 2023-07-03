@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -18,14 +18,14 @@
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 """This module contains an object that represents a Telegram ChatMemberUpdated."""
 import datetime
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Dict, Optional, Tuple, Union
 
 from telegram._chat import Chat
 from telegram._chatinvitelink import ChatInviteLink
 from telegram._chatmember import ChatMember
 from telegram._telegramobject import TelegramObject
 from telegram._user import User
-from telegram._utils.datetime import from_timestamp, to_timestamp
+from telegram._utils.datetime import extract_tzinfo_from_defaults, from_timestamp
 from telegram._utils.types import JSONDict
 
 if TYPE_CHECKING:
@@ -42,27 +42,44 @@ class ChatMemberUpdated(TelegramObject):
     .. versionadded:: 13.4
 
     Note:
-        In Python :keyword:`from` is a reserved word use :paramref:`from_user` instead.
+        In Python :keyword:`from` is a reserved word. Use :paramref:`from_user` instead.
+
+    Examples:
+        :any:`Chat Member Bot <examples.chatmemberbot>`
 
     Args:
         chat (:class:`telegram.Chat`): Chat the user belongs to.
         from_user (:class:`telegram.User`): Performer of the action, which resulted in the change.
         date (:class:`datetime.datetime`): Date the change was done in Unix time. Converted to
             :class:`datetime.datetime`.
+
+            .. versionchanged:: 20.3
+                |datetime_localization|
         old_chat_member (:class:`telegram.ChatMember`): Previous information about the chat member.
         new_chat_member (:class:`telegram.ChatMember`): New information about the chat member.
         invite_link (:class:`telegram.ChatInviteLink`, optional): Chat invite link, which was used
             by the user to join the chat. For joining by invite link events only.
+        via_chat_folder_invite_link (:obj:`bool`, optional): :obj:`True`, if the user joined the
+            chat via a chat folder invite link
+
+            .. versionadded:: 20.3
 
     Attributes:
         chat (:class:`telegram.Chat`): Chat the user belongs to.
         from_user (:class:`telegram.User`): Performer of the action, which resulted in the change.
         date (:class:`datetime.datetime`): Date the change was done in Unix time. Converted to
             :class:`datetime.datetime`.
+
+            .. versionchanged:: 20.3
+                |datetime_localization|
         old_chat_member (:class:`telegram.ChatMember`): Previous information about the chat member.
         new_chat_member (:class:`telegram.ChatMember`): New information about the chat member.
         invite_link (:class:`telegram.ChatInviteLink`): Optional. Chat invite link, which was used
-            by the user to join the chat.
+            by the user to join the chat. For joining by invite link events only.
+        via_chat_folder_invite_link (:obj:`bool`): Optional. :obj:`True`, if the user joined the
+            chat via a chat folder invite link
+
+            .. versionadded:: 20.3
 
     """
 
@@ -73,6 +90,7 @@ class ChatMemberUpdated(TelegramObject):
         "old_chat_member",
         "new_chat_member",
         "invite_link",
+        "via_chat_folder_invite_link",
     )
 
     def __init__(
@@ -82,18 +100,22 @@ class ChatMemberUpdated(TelegramObject):
         date: datetime.datetime,
         old_chat_member: ChatMember,
         new_chat_member: ChatMember,
-        invite_link: ChatInviteLink = None,
-        **_kwargs: Any,
+        invite_link: Optional[ChatInviteLink] = None,
+        via_chat_folder_invite_link: Optional[bool] = None,
+        *,
+        api_kwargs: Optional[JSONDict] = None,
     ):
+        super().__init__(api_kwargs=api_kwargs)
         # Required
-        self.chat = chat
-        self.from_user = from_user
-        self.date = date
-        self.old_chat_member = old_chat_member
-        self.new_chat_member = new_chat_member
+        self.chat: Chat = chat
+        self.from_user: User = from_user
+        self.date: datetime.datetime = date
+        self.old_chat_member: ChatMember = old_chat_member
+        self.new_chat_member: ChatMember = new_chat_member
+        self.via_chat_folder_invite_link: Optional[bool] = via_chat_folder_invite_link
 
         # Optionals
-        self.invite_link = invite_link
+        self.invite_link: Optional[ChatInviteLink] = invite_link
 
         self._id_attrs = (
             self.chat,
@@ -103,6 +125,8 @@ class ChatMemberUpdated(TelegramObject):
             self.new_chat_member,
         )
 
+        self._freeze()
+
     @classmethod
     def de_json(cls, data: Optional[JSONDict], bot: "Bot") -> Optional["ChatMemberUpdated"]:
         """See :meth:`telegram.TelegramObject.de_json`."""
@@ -111,23 +135,17 @@ class ChatMemberUpdated(TelegramObject):
         if not data:
             return None
 
+        # Get the local timezone from the bot if it has defaults
+        loc_tzinfo = extract_tzinfo_from_defaults(bot)
+
         data["chat"] = Chat.de_json(data.get("chat"), bot)
-        data["from_user"] = User.de_json(data.get("from"), bot)
-        data["date"] = from_timestamp(data.get("date"))
+        data["from_user"] = User.de_json(data.pop("from", None), bot)
+        data["date"] = from_timestamp(data.get("date"), tzinfo=loc_tzinfo)
         data["old_chat_member"] = ChatMember.de_json(data.get("old_chat_member"), bot)
         data["new_chat_member"] = ChatMember.de_json(data.get("new_chat_member"), bot)
         data["invite_link"] = ChatInviteLink.de_json(data.get("invite_link"), bot)
 
-        return cls(**data)
-
-    def to_dict(self) -> JSONDict:
-        """See :meth:`telegram.TelegramObject.to_dict`."""
-        data = super().to_dict()
-
-        # Required
-        data["date"] = to_timestamp(self.date)
-
-        return data
+        return super().de_json(data=data, bot=bot)
 
     def _get_attribute_difference(self, attribute: str) -> Tuple[object, object]:
         try:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -22,24 +22,25 @@ from datetime import datetime
 import pytest
 
 from telegram import LoginUrl, WebhookInfo
-from telegram._utils.datetime import from_timestamp
+from telegram._utils.datetime import UTC, from_timestamp
+from tests.auxil.slots import mro_slots
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def webhook_info():
     return WebhookInfo(
-        url=TestWebhookInfo.url,
-        has_custom_certificate=TestWebhookInfo.has_custom_certificate,
-        pending_update_count=TestWebhookInfo.pending_update_count,
-        ip_address=TestWebhookInfo.ip_address,
-        last_error_date=TestWebhookInfo.last_error_date,
-        max_connections=TestWebhookInfo.max_connections,
-        allowed_updates=TestWebhookInfo.allowed_updates,
-        last_synchronization_error_date=TestWebhookInfo.last_synchronization_error_date,
+        url=TestWebhookInfoBase.url,
+        has_custom_certificate=TestWebhookInfoBase.has_custom_certificate,
+        pending_update_count=TestWebhookInfoBase.pending_update_count,
+        ip_address=TestWebhookInfoBase.ip_address,
+        last_error_date=TestWebhookInfoBase.last_error_date,
+        max_connections=TestWebhookInfoBase.max_connections,
+        allowed_updates=TestWebhookInfoBase.allowed_updates,
+        last_synchronization_error_date=TestWebhookInfoBase.last_synchronization_error_date,
     )
 
 
-class TestWebhookInfo:
+class TestWebhookInfoBase:
     url = "http://www.google.com"
     has_custom_certificate = False
     pending_update_count = 5
@@ -49,7 +50,9 @@ class TestWebhookInfo:
     allowed_updates = ["type1", "type2"]
     last_synchronization_error_date = time.time()
 
-    def test_slot_behaviour(self, webhook_info, mro_slots):
+
+class TestWebhookInfoWithoutRequest(TestWebhookInfoBase):
+    def test_slot_behaviour(self, webhook_info):
         for attr in webhook_info.__slots__:
             assert getattr(webhook_info, attr, "err") != "err", f"got extra slot '{attr}'"
         assert len(mro_slots(webhook_info)) == len(set(mro_slots(webhook_info))), "duplicate slot"
@@ -81,6 +84,7 @@ class TestWebhookInfo:
             "last_synchronization_error_date": self.last_synchronization_error_date,
         }
         webhook_info = WebhookInfo.de_json(json_dict, bot)
+        assert webhook_info.api_kwargs == {}
 
         assert webhook_info.url == self.url
         assert webhook_info.has_custom_certificate == self.has_custom_certificate
@@ -88,7 +92,7 @@ class TestWebhookInfo:
         assert isinstance(webhook_info.last_error_date, datetime)
         assert webhook_info.last_error_date == from_timestamp(self.last_error_date)
         assert webhook_info.max_connections == self.max_connections
-        assert webhook_info.allowed_updates == self.allowed_updates
+        assert webhook_info.allowed_updates == tuple(self.allowed_updates)
         assert webhook_info.ip_address == self.ip_address
         assert isinstance(webhook_info.last_synchronization_error_date, datetime)
         assert webhook_info.last_synchronization_error_date == from_timestamp(
@@ -97,6 +101,46 @@ class TestWebhookInfo:
 
         none = WebhookInfo.de_json(None, bot)
         assert none is None
+
+    def test_de_json_localization(self, bot, raw_bot, tz_bot):
+        json_dict = {
+            "url": self.url,
+            "has_custom_certificate": self.has_custom_certificate,
+            "pending_update_count": self.pending_update_count,
+            "last_error_date": self.last_error_date,
+            "max_connections": self.max_connections,
+            "allowed_updates": self.allowed_updates,
+            "ip_address": self.ip_address,
+            "last_synchronization_error_date": self.last_synchronization_error_date,
+        }
+        webhook_info_bot = WebhookInfo.de_json(json_dict, bot)
+        webhook_info_raw = WebhookInfo.de_json(json_dict, raw_bot)
+        webhook_info_tz = WebhookInfo.de_json(json_dict, tz_bot)
+
+        # comparing utcoffsets because comparing timezones is unpredicatable
+        last_error_date_offset = webhook_info_tz.last_error_date.utcoffset()
+        last_error_tz_bot_offset = tz_bot.defaults.tzinfo.utcoffset(
+            webhook_info_tz.last_error_date.replace(tzinfo=None)
+        )
+
+        sync_error_date_offset = webhook_info_tz.last_synchronization_error_date.utcoffset()
+        sync_error_date_tz_bot_offset = tz_bot.defaults.tzinfo.utcoffset(
+            webhook_info_tz.last_synchronization_error_date.replace(tzinfo=None)
+        )
+
+        assert webhook_info_raw.last_error_date.tzinfo == UTC
+        assert webhook_info_bot.last_error_date.tzinfo == UTC
+        assert last_error_date_offset == last_error_tz_bot_offset
+
+        assert webhook_info_raw.last_synchronization_error_date.tzinfo == UTC
+        assert webhook_info_bot.last_synchronization_error_date.tzinfo == UTC
+        assert sync_error_date_offset == sync_error_date_tz_bot_offset
+
+    def test_always_tuple_allowed_updates(self):
+        webhook_info = WebhookInfo(
+            self.url, self.has_custom_certificate, self.pending_update_count
+        )
+        assert webhook_info.allowed_updates == ()
 
     def test_equality(self):
         a = WebhookInfo(

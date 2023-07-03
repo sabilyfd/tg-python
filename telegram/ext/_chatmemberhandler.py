@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -17,12 +17,12 @@
 # You should have received a copy of the GNU Lesser Public License
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 """This module contains the ChatMemberHandler class."""
-from typing import ClassVar, TypeVar
+from typing import Final, Optional, TypeVar
 
 from telegram import Update
 from telegram._utils.defaultvalue import DEFAULT_TRUE
-from telegram._utils.types import DVInput
-from telegram.ext._handler import BaseHandler
+from telegram._utils.types import DVType
+from telegram.ext._basehandler import BaseHandler
 from telegram.ext._utils.types import CCT, HandlerCallback
 
 RT = TypeVar("RT")
@@ -35,7 +35,8 @@ class ChatMemberHandler(BaseHandler[Update, CCT]):
         When setting :paramref:`block` to :obj:`False`, you cannot rely on adding custom
         attributes to :class:`telegram.ext.CallbackContext`. See its docs for more info.
 
-    .. seealso:: `Chat Member Example <examples.chatmemberbot.html>`_
+    Examples:
+        :any:`Chat Member Bot <examples.chatmemberbot>`
 
     .. versionadded:: 13.4
 
@@ -56,9 +57,11 @@ class ChatMemberHandler(BaseHandler[Update, CCT]):
             be awaited before processing the next handler in
             :meth:`telegram.ext.Application.process_update`. Defaults to :obj:`True`.
 
+            .. seealso:: :wiki:`Concurrency`
+
     Attributes:
         callback (:term:`coroutine function`): The callback function for this handler.
-        chat_member_types (:obj:`int`, optional): Specifies if this handler should handle
+        chat_member_types (:obj:`int`): Optional. Specifies if this handler should handle
             only updates with :attr:`telegram.Update.my_chat_member`,
             :attr:`telegram.Update.chat_member` or both.
         block (:obj:`bool`): Determines whether the return value of the callback should be
@@ -68,11 +71,11 @@ class ChatMemberHandler(BaseHandler[Update, CCT]):
     """
 
     __slots__ = ("chat_member_types",)
-    MY_CHAT_MEMBER: ClassVar[int] = -1
+    MY_CHAT_MEMBER: Final[int] = -1
     """:obj:`int`: Used as a constant to handle only :attr:`telegram.Update.my_chat_member`."""
-    CHAT_MEMBER: ClassVar[int] = 0
+    CHAT_MEMBER: Final[int] = 0
     """:obj:`int`: Used as a constant to handle only :attr:`telegram.Update.chat_member`."""
-    ANY_CHAT_MEMBER: ClassVar[int] = 1
+    ANY_CHAT_MEMBER: Final[int] = 1
     """:obj:`int`: Used as a constant to handle both :attr:`telegram.Update.my_chat_member`
     and :attr:`telegram.Update.chat_member`."""
 
@@ -80,11 +83,11 @@ class ChatMemberHandler(BaseHandler[Update, CCT]):
         self,
         callback: HandlerCallback[Update, CCT, RT],
         chat_member_types: int = MY_CHAT_MEMBER,
-        block: DVInput[bool] = DEFAULT_TRUE,
+        block: DVType[bool] = DEFAULT_TRUE,
     ):
         super().__init__(callback, block=block)
 
-        self.chat_member_types = chat_member_types
+        self.chat_member_types: Optional[int] = chat_member_types
 
     def check_update(self, update: object) -> bool:
         """Determines whether an update should be passed to this handler's :attr:`callback`.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 """This module contains an object that represents a Telegram Update."""
 
-from typing import TYPE_CHECKING, Any, ClassVar, List, Optional
+from typing import TYPE_CHECKING, Final, List, Optional
 
 from telegram import constants
 from telegram._callbackquery import CallbackQuery
@@ -34,7 +34,7 @@ from telegram._telegramobject import TelegramObject
 from telegram._utils.types import JSONDict
 
 if TYPE_CHECKING:
-    from telegram import Bot, Chat, User  # noqa
+    from telegram import Bot, Chat, User
 
 
 class Update(TelegramObject):
@@ -45,6 +45,8 @@ class Update(TelegramObject):
 
     Note:
         At most one of the optional parameters can be present in any given update.
+
+    .. seealso:: :wiki:`Your First Bot <Extensions---Your-first-Bot>`
 
     Args:
         update_id (:obj:`int`): The update's unique identifier. Update identifiers start from a
@@ -94,23 +96,34 @@ class Update(TelegramObject):
             receive these updates.
 
             .. versionadded:: 13.8
-        **kwargs (:obj:`dict`): Arbitrary keyword arguments.
-
     Attributes:
-        update_id (:obj:`int`): The update's unique identifier.
-        message (:class:`telegram.Message`): Optional. New incoming message.
-        edited_message (:class:`telegram.Message`): Optional. New version of a message.
-        channel_post (:class:`telegram.Message`): Optional. New incoming channel post.
-        edited_channel_post (:class:`telegram.Message`): Optional. New version of a channel post.
+        update_id (:obj:`int`): The update's unique identifier. Update identifiers start from a
+            certain positive number and increase sequentially. This ID becomes especially handy if
+            you're using Webhooks, since it allows you to ignore repeated updates or to restore the
+            correct update sequence, should they get out of order. If there are no new updates for
+            at least a week, then identifier of the next update will be chosen randomly instead of
+            sequentially.
+        message (:class:`telegram.Message`): Optional. New incoming message of any kind - text,
+            photo, sticker, etc.
+        edited_message (:class:`telegram.Message`): Optional. New version of a message that is
+            known to the bot and was edited.
+        channel_post (:class:`telegram.Message`): Optional. New incoming channel post of any kind
+            - text, photo, sticker, etc.
+        edited_channel_post (:class:`telegram.Message`): Optional. New version of a channel post
+            that is known to the bot and was edited.
         inline_query (:class:`telegram.InlineQuery`): Optional. New incoming inline query.
         chosen_inline_result (:class:`telegram.ChosenInlineResult`): Optional. The result of an
-            inline query that was chosen by a user.
+            inline query that was chosen by a user and sent to their chat partner.
         callback_query (:class:`telegram.CallbackQuery`): Optional. New incoming callback query.
+
+            Examples:
+                :any:`Arbitrary Callback Data Bot <examples.arbitrarycallbackdatabot>`
         shipping_query (:class:`telegram.ShippingQuery`): Optional. New incoming shipping query.
+            Only for invoices with flexible price.
         pre_checkout_query (:class:`telegram.PreCheckoutQuery`): Optional. New incoming
-            pre-checkout query.
-        poll (:class:`telegram.Poll`): Optional. New poll state. Bots receive only updates
-            about stopped polls and polls, which are sent by the bot.
+            pre-checkout query. Contains full information about checkout.
+        poll (:class:`telegram.Poll`): Optional. New poll state. Bots receive only updates about
+            stopped polls and polls, which are sent by the bot.
         poll_answer (:class:`telegram.PollAnswer`): Optional. A user changed their answer
             in a non-anonymous poll. Bots receive new votes only in polls that were sent
             by the bot itself.
@@ -158,63 +171,63 @@ class Update(TelegramObject):
         "chat_join_request",
     )
 
-    MESSAGE: ClassVar[str] = constants.UpdateType.MESSAGE
+    MESSAGE: Final[str] = constants.UpdateType.MESSAGE
     """:const:`telegram.constants.UpdateType.MESSAGE`
 
     .. versionadded:: 13.5"""
-    EDITED_MESSAGE: ClassVar[str] = constants.UpdateType.EDITED_MESSAGE
+    EDITED_MESSAGE: Final[str] = constants.UpdateType.EDITED_MESSAGE
     """:const:`telegram.constants.UpdateType.EDITED_MESSAGE`
 
     .. versionadded:: 13.5"""
-    CHANNEL_POST: ClassVar[str] = constants.UpdateType.CHANNEL_POST
+    CHANNEL_POST: Final[str] = constants.UpdateType.CHANNEL_POST
     """:const:`telegram.constants.UpdateType.CHANNEL_POST`
 
     .. versionadded:: 13.5"""
-    EDITED_CHANNEL_POST: ClassVar[str] = constants.UpdateType.EDITED_CHANNEL_POST
+    EDITED_CHANNEL_POST: Final[str] = constants.UpdateType.EDITED_CHANNEL_POST
     """:const:`telegram.constants.UpdateType.EDITED_CHANNEL_POST`
 
     .. versionadded:: 13.5"""
-    INLINE_QUERY: ClassVar[str] = constants.UpdateType.INLINE_QUERY
+    INLINE_QUERY: Final[str] = constants.UpdateType.INLINE_QUERY
     """:const:`telegram.constants.UpdateType.INLINE_QUERY`
 
     .. versionadded:: 13.5"""
-    CHOSEN_INLINE_RESULT: ClassVar[str] = constants.UpdateType.CHOSEN_INLINE_RESULT
+    CHOSEN_INLINE_RESULT: Final[str] = constants.UpdateType.CHOSEN_INLINE_RESULT
     """:const:`telegram.constants.UpdateType.CHOSEN_INLINE_RESULT`
 
     .. versionadded:: 13.5"""
-    CALLBACK_QUERY: ClassVar[str] = constants.UpdateType.CALLBACK_QUERY
+    CALLBACK_QUERY: Final[str] = constants.UpdateType.CALLBACK_QUERY
     """:const:`telegram.constants.UpdateType.CALLBACK_QUERY`
 
     .. versionadded:: 13.5"""
-    SHIPPING_QUERY: ClassVar[str] = constants.UpdateType.SHIPPING_QUERY
+    SHIPPING_QUERY: Final[str] = constants.UpdateType.SHIPPING_QUERY
     """:const:`telegram.constants.UpdateType.SHIPPING_QUERY`
 
     .. versionadded:: 13.5"""
-    PRE_CHECKOUT_QUERY: ClassVar[str] = constants.UpdateType.PRE_CHECKOUT_QUERY
+    PRE_CHECKOUT_QUERY: Final[str] = constants.UpdateType.PRE_CHECKOUT_QUERY
     """:const:`telegram.constants.UpdateType.PRE_CHECKOUT_QUERY`
 
     .. versionadded:: 13.5"""
-    POLL: ClassVar[str] = constants.UpdateType.POLL
+    POLL: Final[str] = constants.UpdateType.POLL
     """:const:`telegram.constants.UpdateType.POLL`
 
     .. versionadded:: 13.5"""
-    POLL_ANSWER: ClassVar[str] = constants.UpdateType.POLL_ANSWER
+    POLL_ANSWER: Final[str] = constants.UpdateType.POLL_ANSWER
     """:const:`telegram.constants.UpdateType.POLL_ANSWER`
 
     .. versionadded:: 13.5"""
-    MY_CHAT_MEMBER: ClassVar[str] = constants.UpdateType.MY_CHAT_MEMBER
+    MY_CHAT_MEMBER: Final[str] = constants.UpdateType.MY_CHAT_MEMBER
     """:const:`telegram.constants.UpdateType.MY_CHAT_MEMBER`
 
     .. versionadded:: 13.5"""
-    CHAT_MEMBER: ClassVar[str] = constants.UpdateType.CHAT_MEMBER
+    CHAT_MEMBER: Final[str] = constants.UpdateType.CHAT_MEMBER
     """:const:`telegram.constants.UpdateType.CHAT_MEMBER`
 
     .. versionadded:: 13.5"""
-    CHAT_JOIN_REQUEST = constants.UpdateType.CHAT_JOIN_REQUEST
+    CHAT_JOIN_REQUEST: Final[str] = constants.UpdateType.CHAT_JOIN_REQUEST
     """:const:`telegram.constants.UpdateType.CHAT_JOIN_REQUEST`
 
     .. versionadded:: 13.8"""
-    ALL_TYPES: ClassVar[List[str]] = list(constants.UpdateType)
+    ALL_TYPES: Final[List[str]] = list(constants.UpdateType)
     """List[:obj:`str`]: A list of all available update types.
 
     .. versionadded:: 13.5"""
@@ -222,45 +235,49 @@ class Update(TelegramObject):
     def __init__(
         self,
         update_id: int,
-        message: Message = None,
-        edited_message: Message = None,
-        channel_post: Message = None,
-        edited_channel_post: Message = None,
-        inline_query: InlineQuery = None,
-        chosen_inline_result: ChosenInlineResult = None,
-        callback_query: CallbackQuery = None,
-        shipping_query: ShippingQuery = None,
-        pre_checkout_query: PreCheckoutQuery = None,
-        poll: Poll = None,
-        poll_answer: PollAnswer = None,
-        my_chat_member: ChatMemberUpdated = None,
-        chat_member: ChatMemberUpdated = None,
-        chat_join_request: ChatJoinRequest = None,
-        **_kwargs: Any,
+        message: Optional[Message] = None,
+        edited_message: Optional[Message] = None,
+        channel_post: Optional[Message] = None,
+        edited_channel_post: Optional[Message] = None,
+        inline_query: Optional[InlineQuery] = None,
+        chosen_inline_result: Optional[ChosenInlineResult] = None,
+        callback_query: Optional[CallbackQuery] = None,
+        shipping_query: Optional[ShippingQuery] = None,
+        pre_checkout_query: Optional[PreCheckoutQuery] = None,
+        poll: Optional[Poll] = None,
+        poll_answer: Optional[PollAnswer] = None,
+        my_chat_member: Optional[ChatMemberUpdated] = None,
+        chat_member: Optional[ChatMemberUpdated] = None,
+        chat_join_request: Optional[ChatJoinRequest] = None,
+        *,
+        api_kwargs: Optional[JSONDict] = None,
     ):
+        super().__init__(api_kwargs=api_kwargs)
         # Required
-        self.update_id = update_id
+        self.update_id: int = update_id
         # Optionals
-        self.message = message
-        self.edited_message = edited_message
-        self.inline_query = inline_query
-        self.chosen_inline_result = chosen_inline_result
-        self.callback_query = callback_query
-        self.shipping_query = shipping_query
-        self.pre_checkout_query = pre_checkout_query
-        self.channel_post = channel_post
-        self.edited_channel_post = edited_channel_post
-        self.poll = poll
-        self.poll_answer = poll_answer
-        self.my_chat_member = my_chat_member
-        self.chat_member = chat_member
-        self.chat_join_request = chat_join_request
+        self.message: Optional[Message] = message
+        self.edited_message: Optional[Message] = edited_message
+        self.inline_query: Optional[InlineQuery] = inline_query
+        self.chosen_inline_result: Optional[ChosenInlineResult] = chosen_inline_result
+        self.callback_query: Optional[CallbackQuery] = callback_query
+        self.shipping_query: Optional[ShippingQuery] = shipping_query
+        self.pre_checkout_query: Optional[PreCheckoutQuery] = pre_checkout_query
+        self.channel_post: Optional[Message] = channel_post
+        self.edited_channel_post: Optional[Message] = edited_channel_post
+        self.poll: Optional[Poll] = poll
+        self.poll_answer: Optional[PollAnswer] = poll_answer
+        self.my_chat_member: Optional[ChatMemberUpdated] = my_chat_member
+        self.chat_member: Optional[ChatMemberUpdated] = chat_member
+        self.chat_join_request: Optional[ChatJoinRequest] = chat_join_request
 
         self._effective_user: Optional["User"] = None
         self._effective_chat: Optional["Chat"] = None
         self._effective_message: Optional[Message] = None
 
         self._id_attrs = (self.update_id,)
+
+        self._freeze()
 
     @property
     def effective_user(self) -> Optional["User"]:
@@ -421,4 +438,4 @@ class Update(TelegramObject):
         data["chat_member"] = ChatMemberUpdated.de_json(data.get("chat_member"), bot)
         data["chat_join_request"] = ChatJoinRequest.de_json(data.get("chat_join_request"), bot)
 
-        return cls(**data)
+        return super().de_json(data=data, bot=bot)

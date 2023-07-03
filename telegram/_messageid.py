@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -17,9 +17,11 @@
 # You should have received a copy of the GNU Lesser Public License
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 """This module contains an object that represents an instance of a Telegram MessageId."""
-from typing import Any
+
+from typing import Optional
 
 from telegram._telegramobject import TelegramObject
+from telegram._utils.types import JSONDict
 
 
 class MessageId(TelegramObject):
@@ -28,13 +30,19 @@ class MessageId(TelegramObject):
     Objects of this class are comparable in terms of equality. Two objects of this class are
     considered equal, if their :attr:`message_id` is equal.
 
+    Args:
+        message_id (:obj:`int`): Unique message identifier.
+
     Attributes:
-        message_id (:obj:`int`): Unique message identifier
+        message_id (:obj:`int`): Unique message identifier.
     """
 
     __slots__ = ("message_id",)
 
-    def __init__(self, message_id: int, **_kwargs: Any):
-        self.message_id = message_id
+    def __init__(self, message_id: int, *, api_kwargs: Optional[JSONDict] = None):
+        super().__init__(api_kwargs=api_kwargs)
+        self.message_id: int = message_id
 
         self._id_attrs = (self.message_id,)
+
+        self._freeze()

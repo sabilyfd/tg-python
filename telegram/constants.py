@@ -1,5 +1,5 @@
 # python-telegram-bot - a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # by the python-telegram-bot contributors <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -28,43 +28,65 @@ those classes.
 
     * Most of the constants in this module are grouped into enums.
 """
+# TODO: Remove this when https://github.com/PyCQA/pylint/issues/6887 is resolved.
+# pylint: disable=invalid-enum-extension
 
 __all__ = [
     "BOT_API_VERSION",
     "BOT_API_VERSION_INFO",
+    "BotCommandLimit",
     "BotCommandScopeType",
+    "BotDescriptionLimit",
+    "BotNameLimit",
     "CallbackQueryLimit",
     "ChatAction",
     "ChatID",
     "ChatInviteLinkLimit",
+    "ChatLimit",
     "ChatMemberStatus",
+    "ChatPhotoSize",
     "ChatType",
+    "ContactLimit",
     "CustomEmojiStickerLimit",
     "DiceEmoji",
+    "DiceLimit",
     "FileSizeLimit",
     "FloodLimit",
+    "ForumIconColor",
+    "ForumTopicLimit",
+    "InlineKeyboardButtonLimit",
     "InlineKeyboardMarkupLimit",
     "InlineQueryLimit",
+    "InlineQueryResultLimit",
+    "InlineQueryResultsButtonLimit",
     "InlineQueryResultType",
     "InputMediaType",
     "InvoiceLimit",
     "LocationLimit",
     "MaskPosition",
+    "MediaGroupLimit",
     "MenuButtonType",
     "MessageAttachmentType",
     "MessageEntityType",
     "MessageLimit",
     "MessageType",
+    "PollingLimit",
     "ParseMode",
     "PollLimit",
     "PollType",
+    "ReplyLimit",
     "SUPPORTED_WEBHOOK_PORTS",
+    "StickerFormat",
+    "StickerLimit",
+    "StickerSetLimit",
     "StickerType",
     "WebhookLimit",
     "UpdateType",
+    "UserProfilePhotosLimit",
 ]
 
-from typing import List, NamedTuple
+import sys
+from typing import Final, List, NamedTuple
 
 from telegram._utils.enum import IntEnum, StringEnum
 
@@ -94,19 +116,52 @@ class _BotAPIVersion(NamedTuple):
 #: :data:`telegram.__bot_api_version_info__`.
 #:
 #: .. versionadded:: 20.0
-BOT_API_VERSION_INFO = _BotAPIVersion(major=6, minor=2)
+BOT_API_VERSION_INFO: Final[_BotAPIVersion] = _BotAPIVersion(major=6, minor=7)
 #: :obj:`str`: Telegram Bot API
 #: version supported by this version of `python-telegram-bot`. Also available as
 #: :data:`telegram.__bot_api_version__`.
 #:
 #: .. versionadded:: 13.4
-BOT_API_VERSION = str(BOT_API_VERSION_INFO)
+BOT_API_VERSION: Final[str] = str(BOT_API_VERSION_INFO)
 
 # constants above this line are tested
 
 #: List[:obj:`int`]: Ports supported by
 #:  :paramref:`telegram.Bot.set_webhook.url`.
-SUPPORTED_WEBHOOK_PORTS: List[int] = [443, 80, 88, 8443]
+SUPPORTED_WEBHOOK_PORTS: Final[List[int]] = [443, 80, 88, 8443]
+
+
+class BotCommandLimit(IntEnum):
+    """This enum contains limitations for :class:`telegram.BotCommand` and
+    :meth:`telegram.Bot.set_my_commands`.
+    The enum members of this enumeration are instances of :class:`int` and can be treated as such.
+
+    .. versionadded:: 20.0
+    """
+
+    __slots__ = ()
+
+    MIN_COMMAND = 1
+    """:obj:`int`: Minimum value allowed for :paramref:`~telegram.BotCommand.command` parameter of
+    :class:`telegram.BotCommand`.
+    """
+    MAX_COMMAND = 32
+    """:obj:`int`: Maximum value allowed for :paramref:`~telegram.BotCommand.command` parameter of
+    :class:`telegram.BotCommand`.
+    """
+    MIN_DESCRIPTION = 1
+    """:obj:`int`: Minimum value allowed for :paramref:`~telegram.BotCommand.description`
+    parameter of :class:`telegram.BotCommand`.
+    """
+    MAX_DESCRIPTION = 256
+    """:obj:`int`: Maximum value allowed for :paramref:`~telegram.BotCommand.description`
+    parameter of :class:`telegram.BotCommand`.
+    """
+    MAX_COMMAND_NUMBER = 100
+    """:obj:`int`: Maximum number of bot commands passed in a :obj:`list` to the
+    :paramref:`~telegram.Bot.set_my_commands.commands`
+    parameter of :meth:`telegram.Bot.set_my_commands`.
+    """
 
 
 class BotCommandScopeType(StringEnum):
@@ -134,6 +189,43 @@ class BotCommandScopeType(StringEnum):
     """:obj:`str`: The type of :class:`telegram.BotCommandScopeChatMember`."""
 
 
+class BotDescriptionLimit(IntEnum):
+    """This enum contains limitations for the methods :meth:`telegram.Bot.set_my_description` and
+    :meth:`telegram.Bot.set_my_short_description`. The enum members of this enumeration are
+    instances of :class:`int` and can be treated as such.
+
+    .. versionadded:: 20.2
+    """
+
+    __slots__ = ()
+
+    MAX_DESCRIPTION_LENGTH = 512
+    """:obj:`int`: Maximum length for the parameter
+    :paramref:`~telegram.Bot.set_my_description.description` of
+    :meth:`telegram.Bot.set_my_description`
+    """
+    MAX_SHORT_DESCRIPTION_LENGTH = 120
+    """:obj:`int`: Maximum length for the parameter
+    :paramref:`~telegram.Bot.set_my_short_description.short_description` of
+    :meth:`telegram.Bot.set_my_short_description`
+    """
+
+
+class BotNameLimit(IntEnum):
+    """This enum contains limitations for the methods :meth:`telegram.Bot.set_my_name`.
+    The enum members of this enumeration are instances of :class:`int` and can be treated as such.
+
+    .. versionadded:: 20.3
+    """
+
+    __slots__ = ()
+
+    MAX_NAME_LENGTH = 64
+    """:obj:`int`: Maximum length for the parameter :paramref:`~telegram.Bot.set_my_name.name` of
+    :meth:`telegram.Bot.set_my_name`
+    """
+
+
 class CallbackQueryLimit(IntEnum):
     """This enum contains limitations for :class:`telegram.CallbackQuery`/
     :meth:`telegram.Bot.answer_callback_query`. The enum members of this enumeration are instances
@@ -145,7 +237,8 @@ class CallbackQueryLimit(IntEnum):
     __slots__ = ()
 
     ANSWER_CALLBACK_QUERY_TEXT_LENGTH = 200
-    """:obj:`int`: Maximum number of characters for the ``text`` parameter of
+    """:obj:`int`: Maximum number of characters in a :obj:`str` passed as the
+    :paramref:`~telegram.Bot.answer_callback_query.text` parameter of
     :meth:`telegram.Bot.answer_callback_query`."""
 
 
@@ -226,12 +319,60 @@ class ChatInviteLinkLimit(IntEnum):
 
     __slots__ = ()
 
-    MEMBER_LIMIT = 99999
-    """:obj:`int`: Maximum value allowed for the ``member_limit`` parameter of
-    :meth:`telegram.Bot.create_chat_invite_link` and :meth:`telegram.Bot.edit_chat_invite_link`."""
+    MIN_MEMBER_LIMIT = 1
+    """:obj:`int`: Minimum value allowed for the
+    :paramref:`~telegram.Bot.create_chat_invite_link.member_limit` parameter of
+    :meth:`telegram.Bot.create_chat_invite_link` and
+    :paramref:`~telegram.Bot.edit_chat_invite_link.member_limit` of
+    :meth:`telegram.Bot.edit_chat_invite_link`.
+    """
+    MAX_MEMBER_LIMIT = 99999
+    """:obj:`int`: Maximum value allowed for the
+    :paramref:`~telegram.Bot.create_chat_invite_link.member_limit` parameter of
+    :meth:`telegram.Bot.create_chat_invite_link` and
+    :paramref:`~telegram.Bot.edit_chat_invite_link.member_limit` of
+    :meth:`telegram.Bot.edit_chat_invite_link`.
+    """
     NAME_LENGTH = 32
-    """:obj:`int`: Maximum number of characters allowed for the ``name`` parameter of
-    :meth:`telegram.Bot.create_chat_invite_link` and :meth:`telegram.Bot.edit_chat_invite_link`."""
+    """:obj:`int`: Maximum number of characters in a :obj:`str` passed as the
+    :paramref:`~telegram.Bot.create_chat_invite_link.name` parameter of
+    :meth:`telegram.Bot.create_chat_invite_link` and
+    :paramref:`~telegram.Bot.edit_chat_invite_link.name` of
+    :meth:`telegram.Bot.edit_chat_invite_link`.
+    """
+
+
+class ChatLimit(IntEnum):
+    """This enum contains limitations for
+    :meth:`telegram.Bot.set_chat_administrator_custom_title`,
+    :meth:`telegram.Bot.set_chat_description`, and :meth:`telegram.Bot.set_chat_title`.
+    The enum members of this enumeration are instances of :class:`int` and can be treated as such.
+
+    .. versionadded:: 20.0
+    """
+
+    __slots__ = ()
+
+    CHAT_ADMINISTRATOR_CUSTOM_TITLE_LENGTH = 16
+    """:obj:`int`: Maximum length of a :obj:`str` passed as the
+    :paramref:`~telegram.Bot.set_chat_administrator_custom_title.custom_title` parameter of
+    :meth:`telegram.Bot.set_chat_administrator_custom_title`.
+    """
+    CHAT_DESCRIPTION_LENGTH = 255
+    """:obj:`int`: Maximum number of characters in a :obj:`str` passed as the
+    :paramref:`~telegram.Bot.set_chat_description.description` parameter of
+    :meth:`telegram.Bot.set_chat_description`.
+    """
+    MIN_CHAT_TITLE_LENGTH = 1
+    """:obj:`int`: Minimum length of a :obj:`str` passed as the
+    :paramref:`~telegram.Bot.set_chat_title.title` parameter of
+    :meth:`telegram.Bot.set_chat_title`.
+    """
+    MAX_CHAT_TITLE_LENGTH = 128
+    """:obj:`int`: Maximum length of a :obj:`str` passed as the
+    :paramref:`~telegram.Bot.set_chat_title.title` parameter of
+    :meth:`telegram.Bot.set_chat_title`.
+    """
 
 
 class ChatMemberStatus(StringEnum):
@@ -257,6 +398,29 @@ class ChatMemberStatus(StringEnum):
     """:obj:`str`: A :class:`telegram.ChatMember` who was restricted in this chat."""
 
 
+class ChatPhotoSize(IntEnum):
+    """This enum contains limitations for :class:`telegram.ChatPhoto`.
+    The enum members of this enumeration are instances of :class:`int` and can be treated as such.
+
+    .. versionadded:: 20.0
+    """
+
+    __slots__ = ()
+
+    SMALL = 160
+    """:obj:`int`: Width and height of a small chat photo, ID of which is passed in
+    :paramref:`~telegram.ChatPhoto.small_file_id` and
+    :paramref:`~telegram.ChatPhoto.small_file_unique_id` parameters of
+    :class:`telegram.ChatPhoto`.
+    """
+    BIG = 640
+    """:obj:`int`: Width and height of a big chat photo, ID of which is passed in
+    :paramref:`~telegram.ChatPhoto.big_file_id` and
+    :paramref:`~telegram.ChatPhoto.big_file_unique_id` parameters of
+    :class:`telegram.ChatPhoto`.
+    """
+
+
 class ChatType(StringEnum):
     """This enum contains the available types of :class:`telegram.Chat`. The enum
     members of this enumeration are instances of :class:`str` and can be treated as such.
@@ -277,6 +441,27 @@ class ChatType(StringEnum):
     """:obj:`str`: A :class:`telegram.Chat` that is a supergroup."""
     CHANNEL = "channel"
     """:obj:`str`: A :class:`telegram.Chat` that is a channel."""
+
+
+class ContactLimit(IntEnum):
+    """This enum contains limitations for :class:`telegram.InlineQueryResultContact`,
+    :class:`telegram.InputContactMessageContent`, and :meth:`telegram.Bot.send_contact`.
+    The enum members of this enumeration are instances of :class:`int` and can be treated as such.
+
+    .. versionadded:: 20.0
+    """
+
+    __slots__ = ()
+
+    VCARD = 2048
+    """:obj:`int`: Maximum value allowed for:
+
+    * :paramref:`~telegram.Bot.send_contact.vcard` parameter of :meth:`~telegram.Bot.send_contact`
+    * :paramref:`~telegram.InlineQueryResultContact.vcard` parameter of
+      :class:`~telegram.InlineQueryResultContact`
+    * :paramref:`~telegram.InputContactMessageContent.vcard` parameter of
+      :class:`~telegram.InputContactMessageContent`
+    """
 
 
 class CustomEmojiStickerLimit(IntEnum):
@@ -319,6 +504,52 @@ class DiceEmoji(StringEnum):
     """:obj:`str`: A :class:`telegram.Dice` with the emoji ``🎳``."""
 
 
+class DiceLimit(IntEnum):
+    """This enum contains limitations for :class:`telegram.Dice`.
+    The enum members of this enumeration are instances of :class:`int` and can be treated as such.
+
+    .. versionadded:: 20.0
+    """
+
+    __slots__ = ()
+
+    MIN_VALUE = 1
+    """:obj:`int`: Minimum value allowed for :paramref:`~telegram.Dice.value` parameter of
+    :class:`telegram.Dice` (any emoji).
+    """
+
+    MAX_VALUE_BASKETBALL = 5
+    """:obj:`int`: Maximum value allowed for :paramref:`~telegram.Dice.value` parameter of
+    :class:`telegram.Dice` if :paramref:`~telegram.Dice.emoji` is
+    :tg-const:`telegram.constants.DiceEmoji.BASKETBALL`.
+    """
+    MAX_VALUE_BOWLING = 6
+    """:obj:`int`: Maximum value allowed for :paramref:`~telegram.Dice.value` parameter of
+    :class:`telegram.Dice` if :paramref:`~telegram.Dice.emoji` is
+    :tg-const:`telegram.constants.DiceEmoji.BOWLING`.
+    """
+    MAX_VALUE_DARTS = 6
+    """:obj:`int`: Maximum value allowed for :paramref:`~telegram.Dice.value` parameter of
+    :class:`telegram.Dice` if :paramref:`~telegram.Dice.emoji` is
+    :tg-const:`telegram.constants.DiceEmoji.DARTS`.
+    """
+    MAX_VALUE_DICE = 6
+    """:obj:`int`: Maximum value allowed for :paramref:`~telegram.Dice.value` parameter of
+    :class:`telegram.Dice` if :paramref:`~telegram.Dice.emoji` is
+    :tg-const:`telegram.constants.DiceEmoji.DICE`.
+    """
+    MAX_VALUE_FOOTBALL = 5
+    """:obj:`int`: Maximum value allowed for :paramref:`~telegram.Dice.value` parameter of
+    :class:`telegram.Dice` if :paramref:`~telegram.Dice.emoji` is
+    :tg-const:`telegram.constants.DiceEmoji.FOOTBALL`.
+    """
+    MAX_VALUE_SLOT_MACHINE = 64
+    """:obj:`int`: Maximum value allowed for :paramref:`~telegram.Dice.value` parameter of
+    :class:`telegram.Dice` if :paramref:`~telegram.Dice.emoji` is
+    :tg-const:`telegram.constants.DiceEmoji.SLOT_MACHINE`.
+    """
+
+
 class FileSizeLimit(IntEnum):
     """This enum contains limitations regarding the upload and download of files. The enum
     members of this enumeration are instances of :class:`int` and can be treated as such.
@@ -332,8 +563,20 @@ class FileSizeLimit(IntEnum):
     """:obj:`int`: Bots can download files of up to 20MB in size."""
     FILESIZE_UPLOAD = int(50e6)  # (50MB)
     """:obj:`int`: Bots can upload non-photo files of up to 50MB in size."""
+    FILESIZE_UPLOAD_LOCAL_MODE = int(2e9)  # (2000MB)
+    """:obj:`int`: Bots can upload non-photo files of up to 2000MB in size when using a local bot
+       API server.
+    """
+    FILESIZE_DOWNLOAD_LOCAL_MODE = sys.maxsize
+    """:obj:`int`: Bots can download files without a size limit when using a local bot API server.
+    """
     PHOTOSIZE_UPLOAD = int(10e6)  # (10MB)
     """:obj:`int`: Bots can upload photo files of up to 10MB in size."""
+    VOICE_NOTE_FILE_SIZE = int(1e6)  # (1MB)
+    """:obj:`int`: File size limit for the :meth:`~telegram.Bot.send_voice` method of
+    :class:`telegram.Bot`. Bots can send :mimetype:`audio/ogg` files of up to 1MB in size as
+    a voice note. Larger voice notes (up to 20MB) will be sent as files."""
+    # It seems OK to link 20MB limit to FILESIZE_DOWNLOAD rather than creating a new constant
 
 
 class FloodLimit(IntEnum):
@@ -357,6 +600,87 @@ class FloodLimit(IntEnum):
     MESSAGES_PER_MINUTE_PER_GROUP = 20
     """:obj:`int`: The number of messages that can roughly be sent to a particular group within one
     minute.
+    """
+
+
+class ForumIconColor(IntEnum):
+    """This enum contains the available colors for use in
+    :paramref:`telegram.Bot.create_forum_topic.icon_color`. The enum members of this enumeration
+    are instances of :class:`int` and can be treated as such.
+
+    .. versionadded:: 20.0
+    """
+
+    __slots__ = ()
+
+    BLUE = 0x6FB9F0
+    """:obj:`int`: An icon with a color which corresponds to blue (``0x6FB9F0``).
+
+    .. raw:: html
+
+        <div style="height:15px; width:15px; background-color:#6FB9F0;"></div>
+
+    """
+    YELLOW = 0xFFD67E
+    """:obj:`int`: An icon with a color which corresponds to yellow (``0xFFD67E``).
+
+    .. raw:: html
+
+        <div style="height:15px; width:15px; background-color:#FFD67E;"></div>
+
+    """
+    PURPLE = 0xCB86DB
+    """:obj:`int`: An icon with a color which corresponds to purple (``0xCB86DB``).
+
+    .. raw:: html
+
+        <div style="height:15px; width:15px; background-color:#CB86DB;"></div>
+
+    """
+    GREEN = 0x8EEE98
+    """:obj:`int`: An icon with a color which corresponds to green (``0x8EEE98``).
+
+    .. raw:: html
+
+        <div style="height:15px; width:15px; background-color:#8EEE98;"></div>
+
+    """
+    PINK = 0xFF93B2
+    """:obj:`int`: An icon with a color which corresponds to pink (``0xFF93B2``).
+
+    .. raw:: html
+
+        <div style="height:15px; width:15px; background-color:#FF93B2;"></div>
+
+    """
+    RED = 0xFB6F5F
+    """:obj:`int`: An icon with a color which corresponds to red (``0xFB6F5F``).
+
+    .. raw:: html
+
+        <div style="height:15px; width:15px; background-color:#FB6F5F;"></div>
+
+    """
+
+
+class InlineKeyboardButtonLimit(IntEnum):
+    """This enum contains limitations for :class:`telegram.InlineKeyboardButton`.
+    The enum members of this enumeration are instances of :class:`int` and can be treated as such.
+
+    .. versionadded:: 20.0
+    """
+
+    __slots__ = ()
+
+    MIN_CALLBACK_DATA = 1
+    """:obj:`int`: Minimum value allowed for
+    :paramref:`~telegram.InlineKeyboardButton.callback_data` parameter of
+    :class:`telegram.InlineKeyboardButton`
+    """
+    MAX_CALLBACK_DATA = 64
+    """:obj:`int`: Maximum value allowed for
+    :paramref:`~telegram.InlineKeyboardButton.callback_data` parameter of
+    :class:`telegram.InlineKeyboardButton`
     """
 
 
@@ -418,9 +742,70 @@ class InlineQueryLimit(IntEnum):
     RESULTS = 50
     """:obj:`int`: Maximum number of results that can be passed to
     :meth:`telegram.Bot.answer_inline_query`."""
-    SWITCH_PM_TEXT_LENGTH = 64
-    """:obj:`int`: Maximum number of characters for the ``switch_pm_text`` parameter of
+    MAX_OFFSET_LENGTH = 64
+    """:obj:`int`: Maximum number of bytes in a :obj:`str` passed as the
+    :paramref:`~telegram.Bot.answer_inline_query.next_offset` parameter of
     :meth:`telegram.Bot.answer_inline_query`."""
+    MAX_QUERY_LENGTH = 256
+    """:obj:`int`: Maximum number of characters in a :obj:`str` passed as the
+    :paramref:`~telegram.InlineQuery.query` parameter of :class:`telegram.InlineQuery`."""
+    MIN_SWITCH_PM_TEXT_LENGTH = 1
+    """:obj:`int`: Minimum number of characters in a :obj:`str` passed as the
+    :paramref:`~telegram.Bot.answer_inline_query.switch_pm_parameter` parameter of
+    :meth:`telegram.Bot.answer_inline_query`.
+
+    .. deprecated:: 20.3
+        Deprecated in favor of :attr:`InlineQueryResultsButtonLimit.MIN_START_PARAMETER_LENGTH`.
+    """
+    MAX_SWITCH_PM_TEXT_LENGTH = 64
+    """:obj:`int`: Maximum number of characters in a :obj:`str` passed as the
+    :paramref:`~telegram.Bot.answer_inline_query.switch_pm_parameter` parameter of
+    :meth:`telegram.Bot.answer_inline_query`.
+
+    .. deprecated:: 20.3
+        Deprecated in favor of :attr:`InlineQueryResultsButtonLimit.MAX_START_PARAMETER_LENGTH`.
+    """
+
+
+class InlineQueryResultLimit(IntEnum):
+    """This enum contains limitations for :class:`telegram.InlineQueryResult` and its subclasses.
+    The enum members of this enumeration are instances of :class:`int` and can be treated as such.
+
+    .. versionadded:: 20.0
+    """
+
+    __slots__ = ()
+
+    MIN_ID_LENGTH = 1
+    """:obj:`int`: Minimum number of bytes in a :obj:`str` passed as the
+    :paramref:`~telegram.InlineQueryResult.id` parameter of
+    :class:`telegram.InlineQueryResult` and its subclasses
+    """
+    MAX_ID_LENGTH = 64
+    """:obj:`int`: Maximum number of bytes in a :obj:`str` passed as the
+    :paramref:`~telegram.InlineQueryResult.id` parameter of
+    :class:`telegram.InlineQueryResult` and its subclasses
+    """
+
+
+class InlineQueryResultsButtonLimit(IntEnum):
+    """This enum contains limitations for :class:`telegram.InlineQueryResultsButton`.
+    The enum members of this enumeration are instances of :class:`int` and can be treated as such.
+
+    .. versionadded:: 20.3
+    """
+
+    __slots__ = ()
+
+    MIN_START_PARAMETER_LENGTH = InlineQueryLimit.MIN_SWITCH_PM_TEXT_LENGTH
+    """:obj:`int`: Minimum number of characters in a :obj:`str` passed as the
+    :paramref:`~telegram.InlineQueryResultsButton.start_parameter` parameter of
+    :meth:`telegram.InlineQueryResultsButton`."""
+
+    MAX_START_PARAMETER_LENGTH = InlineQueryLimit.MAX_SWITCH_PM_TEXT_LENGTH
+    """:obj:`int`: Maximum number of characters in a :obj:`str` passed as the
+    :paramref:`~telegram.InlineQueryResultsButton.start_parameter` parameter of
+    :meth:`telegram.InlineQueryResultsButton`."""
 
 
 class InlineQueryResultType(StringEnum):
@@ -475,25 +860,114 @@ class InlineQueryResultType(StringEnum):
 
 
 class LocationLimit(IntEnum):
-    """This enum contains limitations for :class:`telegram.Location`/
-    :meth:`telegram.Bot.send_location`. The enum members of this enumeration are instances
-    of :class:`int` and can be treated as such.
+    """This enum contains limitations for
+    :class:`telegram.Location`/:class:`telegram.ChatLocation`/
+    :meth:`telegram.Bot.edit_message_live_location`/:meth:`telegram.Bot.send_location`.
+    The enum members of this enumeration are instances of :class:`int` and can be treated as such.
 
     .. versionadded:: 20.0
     """
 
     __slots__ = ()
 
-    HORIZONTAL_ACCURACY = 1500
-    """:obj:`int`: Maximum radius of uncertainty for the location, measured in meters."""
-
-    HEADING = 360
-    """:obj:`int`: Maximum value allowed for the direction in which the user is moving,
-    in degrees.
+    MIN_CHAT_LOCATION_ADDRESS = 1
+    """:obj:`int`: Minimum value allowed for :paramref:`~telegram.ChatLocation.address` parameter
+    of :class:`telegram.ChatLocation`
     """
-    PROXIMITY_ALERT_RADIUS = 100000
-    """:obj:`int`: Maximum distance for proximity alerts about approaching another chat member, in
-    meters.
+    MAX_CHAT_LOCATION_ADDRESS = 64
+    """:obj:`int`: Minimum value allowed for :paramref:`~telegram.ChatLocation.address` parameter
+    of :class:`telegram.ChatLocation`
+    """
+
+    HORIZONTAL_ACCURACY = 1500
+    """:obj:`int`: Maximum value allowed for:
+
+    * :paramref:`~telegram.Location.horizontal_accuracy` parameter of :class:`telegram.Location`
+    * :paramref:`~telegram.InlineQueryResultLocation.horizontal_accuracy` parameter of
+      :class:`telegram.InlineQueryResultLocation`
+    * :paramref:`~telegram.InputLocationMessageContent.horizontal_accuracy` parameter of
+      :class:`telegram.InputLocationMessageContent`
+    * :paramref:`~telegram.Bot.edit_message_live_location.horizontal_accuracy` parameter of
+      :meth:`telegram.Bot.edit_message_live_location`
+    * :paramref:`~telegram.Bot.send_location.horizontal_accuracy` parameter of
+      :meth:`telegram.Bot.send_location`
+    """
+
+    MIN_HEADING = 1
+    """:obj:`int`: Minimum value allowed for:
+
+    * :paramref:`~telegram.Location.heading` parameter of :class:`telegram.Location`
+    * :paramref:`~telegram.InlineQueryResultLocation.heading` parameter of
+      :class:`telegram.InlineQueryResultLocation`
+    * :paramref:`~telegram.InputLocationMessageContent.heading` parameter of
+      :class:`telegram.InputLocationMessageContent`
+    * :paramref:`~telegram.Bot.edit_message_live_location.heading` parameter of
+      :meth:`telegram.Bot.edit_message_live_location`
+    * :paramref:`~telegram.Bot.send_location.heading` parameter of
+      :meth:`telegram.Bot.send_location`
+    """
+    MAX_HEADING = 360
+    """:obj:`int`: Maximum value allowed for:
+
+    * :paramref:`~telegram.Location.heading` parameter of :class:`telegram.Location`
+    * :paramref:`~telegram.InlineQueryResultLocation.heading` parameter of
+      :class:`telegram.InlineQueryResultLocation`
+    * :paramref:`~telegram.InputLocationMessageContent.heading` parameter of
+      :class:`telegram.InputLocationMessageContent`
+    * :paramref:`~telegram.Bot.edit_message_live_location.heading` parameter of
+      :meth:`telegram.Bot.edit_message_live_location`
+    * :paramref:`~telegram.Bot.send_location.heading` parameter of
+      :meth:`telegram.Bot.send_location`
+    """
+
+    MIN_LIVE_PERIOD = 60
+    """:obj:`int`: Minimum value allowed for:
+
+    * :paramref:`~telegram.InlineQueryResultLocation.live_period` parameter of
+      :class:`telegram.InlineQueryResultLocation`
+    * :paramref:`~telegram.InputLocationMessageContent.live_period` parameter of
+      :class:`telegram.InputLocationMessageContent`
+    * :paramref:`~telegram.Bot.edit_message_live_location.live_period` parameter of
+      :meth:`telegram.Bot.edit_message_live_location`
+    * :paramref:`~telegram.Bot.send_location.live_period` parameter of
+      :meth:`telegram.Bot.send_location`
+    """
+    MAX_LIVE_PERIOD = 86400
+    """:obj:`int`: Maximum value allowed for:
+
+    * :paramref:`~telegram.InlineQueryResultLocation.live_period` parameter of
+      :class:`telegram.InlineQueryResultLocation`
+    * :paramref:`~telegram.InputLocationMessageContent.live_period` parameter of
+      :class:`telegram.InputLocationMessageContent`
+    * :paramref:`~telegram.Bot.edit_message_live_location.live_period` parameter of
+      :meth:`telegram.Bot.edit_message_live_location`
+    * :paramref:`~telegram.Bot.send_location.live_period` parameter of
+      :meth:`telegram.Bot.send_location`
+    """
+
+    MIN_PROXIMITY_ALERT_RADIUS = 1
+    """:obj:`int`: Minimum value allowed for:
+
+    * :paramref:`~telegram.InlineQueryResultLocation.proximity_alert_radius` parameter of
+      :class:`telegram.InlineQueryResultLocation`
+    * :paramref:`~telegram.InputLocationMessageContent.proximity_alert_radius` parameter of
+      :class:`telegram.InputLocationMessageContent`
+    * :paramref:`~telegram.Bot.edit_message_live_location.proximity_alert_radius` parameter of
+      :meth:`telegram.Bot.edit_message_live_location`
+    * :paramref:`~telegram.Bot.send_location.proximity_alert_radius` parameter of
+      :meth:`telegram.Bot.send_location`
+    """
+    MAX_PROXIMITY_ALERT_RADIUS = 100000
+    """:obj:`int`: Maximum value allowed for:
+
+    * :paramref:`~telegram.InlineQueryResultLocation.proximity_alert_radius` parameter of
+      :class:`telegram.InlineQueryResultLocation`
+    * :paramref:`~telegram.InputLocationMessageContent.proximity_alert_radius` parameter of
+      :class:`telegram.InputLocationMessageContent`
+    * :paramref:`~telegram.Bot.edit_message_live_location.proximity_alert_radius` parameter of
+      :meth:`telegram.Bot.edit_message_live_location`
+    * :paramref:`~telegram.Bot.send_location.proximity_alert_radius` parameter of
+      :meth:`telegram.Bot.send_location`
     """
 
 
@@ -514,6 +988,27 @@ class MaskPosition(StringEnum):
     """:obj:`str`: Mask position for a sticker on the mouth."""
     CHIN = "chin"
     """:obj:`str`: Mask position for a sticker on the chin."""
+
+
+class MediaGroupLimit(IntEnum):
+    """This enum contains limitations for :meth:`telegram.Bot.send_media_group`.
+    The enum members of this enumeration are instances of :class:`int` and can be treated as such.
+
+    .. versionadded:: 20.0
+    """
+
+    __slots__ = ()
+
+    MIN_MEDIA_LENGTH = 2
+    """:obj:`int`: Minimum length of a :obj:`list` passed as the
+    :paramref:`~telegram.Bot.send_media_group.media` parameter of
+    :meth:`telegram.Bot.send_media_group`.
+    """
+    MAX_MEDIA_LENGTH = 10
+    """:obj:`int`: Maximum length of a :obj:`list` passed as the
+    :paramref:`~telegram.Bot.send_media_group.media` parameter of
+    :meth:`telegram.Bot.send_media_group`.
+    """
 
 
 class MenuButtonType(StringEnum):
@@ -632,6 +1127,7 @@ class MessageEntityType(StringEnum):
 
 class MessageLimit(IntEnum):
     """This enum contains limitations for :class:`telegram.Message`/
+    :class:`telegram.InputTextMessageContent`/
     :meth:`telegram.Bot.send_message` & friends. The enum
     members of this enumeration are instances of :class:`int` and can be treated as such.
 
@@ -640,11 +1136,42 @@ class MessageLimit(IntEnum):
 
     __slots__ = ()
 
-    TEXT_LENGTH = 4096
-    """:obj:`int`: Maximum number of characters for a text message."""
+    # TODO add links to params?
+    MAX_TEXT_LENGTH = 4096
+    """:obj:`int`: Maximum number of characters in a :obj:`str` passed as:
+
+    * :paramref:`~telegram.Game.text` parameter of :class:`telegram.Game`
+    * :paramref:`~telegram.Message.text` parameter of :class:`telegram.Message`
+    * :paramref:`~telegram.InputTextMessageContent.message_text` parameter of
+      :class:`telegram.InputTextMessageContent`
+    * :paramref:`~telegram.Bot.send_message.text` parameter of :meth:`telegram.Bot.send_message`
+    * :paramref:`~telegram.Bot.edit_message_text.text` parameter of
+      :meth:`telegram.Bot.edit_message_text`
+    """
     CAPTION_LENGTH = 1024
-    """:obj:`int`: Maximum number of characters for a message caption."""
+    """:obj:`int`: Maximum number of characters in a :obj:`str` passed as:
+
+    * :paramref:`~telegram.Message.caption` parameter of :class:`telegram.Message`
+    * :paramref:`~telegram.InputMedia.caption` parameter of :class:`telegram.InputMedia`
+      and its subclasses
+    * ``caption`` parameter of subclasses of :class:`telegram.InlineQueryResult`
+    * ``caption`` parameter of :meth:`telegram.Bot.send_photo`, :meth:`telegram.Bot.send_audio`,
+      :meth:`telegram.Bot.send_document`, :meth:`telegram.Bot.send_video`,
+      :meth:`telegram.Bot.send_animation`, :meth:`telegram.Bot.send_voice`,
+      :meth:`telegram.Bot.edit_message_caption`, :meth:`telegram.Bot.copy_message`
+    """
     # constants above this line are tested
+    MIN_TEXT_LENGTH = 1
+    """:obj:`int`: Minimum number of characters in a :obj:`str` passed as the
+    :paramref:`~telegram.InputTextMessageContent.message_text` parameter of
+    :class:`telegram.InputTextMessageContent` and the
+    :paramref:`~telegram.Bot.edit_message_text.text` parameter of
+    :meth:`telegram.Bot.edit_message_text`.
+    """
+    # TODO this constant is not used. helpers.py contains 64 as a number
+    DEEP_LINK_LENGTH = 64
+    """:obj:`int`: Maximum number of characters for a deep link."""
+    # TODO this constant is not used anywhere
     MESSAGE_ENTITIES = 100
     """:obj:`int`: Maximum number of entities that can be displayed in a message. Further entities
     will simply be ignored by Telegram.
@@ -741,6 +1268,164 @@ class MessageType(StringEnum):
     """:obj:`str`: Messages with :attr:`telegram.Message.video_chat_participants_invited`."""
 
 
+class PollingLimit(IntEnum):
+    """This enum contains limitations for :paramref:`telegram.Bot.get_updates.limit`.
+    The enum members of this enumeration are instances of :class:`int` and can be treated as such.
+
+    .. versionadded:: 20.0
+    """
+
+    __slots__ = ()
+
+    MIN_LIMIT = 1
+    """:obj:`int`: Minimum value allowed for the :paramref:`~telegram.Bot.get_updates.limit`
+    parameter of :meth:`telegram.Bot.get_updates`.
+    """
+    MAX_LIMIT = 100
+    """:obj:`int`: Maximum value allowed for the :paramref:`~telegram.Bot.get_updates.limit`
+    parameter of :meth:`telegram.Bot.get_updates`.
+    """
+
+
+class ReplyLimit(IntEnum):
+    """This enum contains limitations for :class:`telegram.ForceReply`
+    and :class:`telegram.ReplyKeyboardMarkup`.
+    The enum members of this enumeration are instances of :class:`int` and can be treated as such.
+
+    .. versionadded:: 20.0
+    """
+
+    __slots__ = ()
+
+    MIN_INPUT_FIELD_PLACEHOLDER = 1
+    """:obj:`int`: Minimum value allowed for
+    :paramref:`~telegram.ForceReply.input_field_placeholder` parameter of
+    :class:`telegram.ForceReply` and
+    :paramref:`~telegram.ReplyKeyboardMarkup.input_field_placeholder` parameter of
+    :class:`telegram.ReplyKeyboardMarkup`
+    """
+    MAX_INPUT_FIELD_PLACEHOLDER = 64
+    """:obj:`int`: Maximum value allowed for
+    :paramref:`~telegram.ForceReply.input_field_placeholder` parameter of
+    :class:`telegram.ForceReply` and
+    :paramref:`~telegram.ReplyKeyboardMarkup.input_field_placeholder` parameter of
+    :class:`telegram.ReplyKeyboardMarkup`
+    """
+
+
+class StickerFormat(StringEnum):
+    """This enum contains the available formats of :class:`telegram.Sticker` in the set. The enum
+    members of this enumeration are instances of :class:`str` and can be treated as such.
+
+    .. versionadded:: 20.2
+    """
+
+    __slots__ = ()
+
+    STATIC = "static"
+    """:obj:`str`: Static sticker."""
+    ANIMATED = "animated"
+    """:obj:`str`: Animated sticker."""
+    VIDEO = "video"
+    """:obj:`str`: Video sticker."""
+
+
+class StickerLimit(IntEnum):
+    """This enum contains limitations for various sticker methods, such as
+    :meth:`telegram.Bot.create_new_sticker_set`.
+    The enum members of this enumeration are instances of :class:`int` and can be treated as such.
+
+    .. versionadded:: 20.0
+    """
+
+    __slots__ = ()
+
+    MIN_NAME_AND_TITLE = 1
+    """:obj:`int`: Minimum number of characters in a :obj:`str` passed as the
+    :paramref:`~telegram.Bot.create_new_sticker_set.name` parameter or the
+    :paramref:`~telegram.Bot.create_new_sticker_set.title` parameter of
+    :meth:`telegram.Bot.create_new_sticker_set`.
+    """
+    MAX_NAME_AND_TITLE = 64
+    """:obj:`int`: Maximum number of characters in a :obj:`str` passed as the
+    :paramref:`~telegram.Bot.create_new_sticker_set.name` parameter or the
+    :paramref:`~telegram.Bot.create_new_sticker_set.title` parameter of
+    :meth:`telegram.Bot.create_new_sticker_set`.
+    """
+    MIN_STICKER_EMOJI = 1
+    """:obj:`int`: Minimum number of emojis associated with a sticker, passed as the
+    :paramref:`~telegram.Bot.setStickerEmojiList.emoji_list` parameter of
+    :meth:`telegram.Bot.set_sticker_emoji_list`.
+
+    .. versionadded:: 20.2
+    """
+    MAX_STICKER_EMOJI = 20
+    """:obj:`int`: Maximum number of emojis associated with a sticker, passed as the
+    :paramref:`~telegram.Bot.setStickerEmojiList.emoji_list` parameter of
+    :meth:`telegram.Bot.set_sticker_emoji_list`.
+
+    .. versionadded:: 20.2
+    """
+    MAX_SEARCH_KEYWORDS = 20
+    """:obj:`int`: Maximum number of search keywords for a sticker, passed as the
+    :paramref:`~telegram.Bot.set_sticker_keywords.keywords` parameter of
+    :meth:`telegram.Bot.set_sticker_keywords`.
+
+    .. versionadded:: 20.2
+    """
+    MAX_KEYWORD_LENGTH = 64
+    """:obj:`int`: Maximum number of characters in a search keyword for a sticker, for each item in
+    :paramref:`~telegram.Bot.set_sticker_keywords.keywords` sequence of
+    :meth:`telegram.Bot.set_sticker_keywords`.
+
+    .. versionadded:: 20.2
+    """
+
+
+class StickerSetLimit(IntEnum):
+    """This enum contains limitations for various sticker set methods, such as
+    :meth:`telegram.Bot.create_new_sticker_set` and :meth:`telegram.Bot.add_sticker_to_set`.
+
+    The enum members of this enumeration are instances of :class:`int` and can be treated as such.
+
+    .. versionadded:: 20.2
+    """
+
+    __slots__ = ()
+
+    MIN_INITIAL_STICKERS = 1
+    """:obj:`int`: Minimum number of stickers needed to create a sticker set, passed as the
+    :paramref:`~telegram.Bot.create_new_sticker_set.stickers` parameter of
+    :meth:`telegram.Bot.create_new_sticker_set`.
+    """
+    MAX_INITIAL_STICKERS = 50
+    """:obj:`int`: Maximum number of stickers allowed while creating a sticker set, passed as the
+    :paramref:`~telegram.Bot.create_new_sticker_set.stickers` parameter of
+    :meth:`telegram.Bot.create_new_sticker_set`.
+    """
+    MAX_EMOJI_STICKERS = 200
+    """:obj:`int`: Maximum number of stickers allowed in an emoji sticker set, as given in
+    :meth:`telegram.Bot.add_sticker_to_set`.
+    """
+    MAX_ANIMATED_STICKERS = 50
+    """:obj:`int`: Maximum number of stickers allowed in an animated or video sticker set, as given
+    in :meth:`telegram.Bot.add_sticker_to_set`.
+    """
+    MAX_STATIC_STICKERS = 120
+    """:obj:`int`: Maximum number of stickers allowed in a static sticker set, as given in
+    :meth:`telegram.Bot.add_sticker_to_set`.
+    """
+    MAX_STATIC_THUMBNAIL_SIZE = 128
+    """:obj:`int`: Maximum size of the thumbnail if it is a **.WEBP** or **.PNG** in kilobytes,
+    as given in :meth:`telegram.Bot.set_sticker_set_thumbnail`."""
+    MAX_ANIMATED_THUMBNAIL_SIZE = 32
+    """:obj:`int`: Maximum size of the thumbnail if it is a **.TGS** or **.WEBM** in kilobytes,
+    as given in :meth:`telegram.Bot.set_sticker_set_thumbnail`."""
+    STATIC_THUMB_DIMENSIONS = 100
+    """:obj:`int`: Exact height and width of the thumbnail if it is a **.WEBP** or **.PNG** in
+    pixels, as given in :meth:`telegram.Bot.set_sticker_set_thumbnail`."""
+
+
 class StickerType(StringEnum):
     """This enum contains the available types of :class:`telegram.Sticker`. The enum
     members of this enumeration are instances of :class:`str` and can be treated as such.
@@ -781,7 +1466,7 @@ class ParseMode(StringEnum):
 
 
 class PollLimit(IntEnum):
-    """This enum contains limitations for :class:`telegram.Poll`/
+    """This enum contains limitations for :class:`telegram.Poll`/:class:`telegram.PollOption`/
     :meth:`telegram.Bot.send_poll`. The enum
     members of this enumeration are instances of :class:`int` and can be treated as such.
 
@@ -790,12 +1475,58 @@ class PollLimit(IntEnum):
 
     __slots__ = ()
 
-    QUESTION_LENGTH = 300
-    """:obj:`str`: Maximum number of characters of the polls question."""
-    OPTION_LENGTH = 100
-    """:obj:`str`: Maximum number of characters for each option for the poll."""
-    OPTION_NUMBER = 10
-    """:obj:`str`: Maximum number of available options for the poll."""
+    MIN_QUESTION_LENGTH = 1
+    """:obj:`int`: Minimum value allowed for the :paramref:`~telegram.Poll.question`
+    parameter of :class:`telegram.Poll` and the :paramref:`~telegram.Bot.send_poll.question`
+    parameter of :meth:`telegram.Bot.send_poll`.
+    """
+    MAX_QUESTION_LENGTH = 300
+    """:obj:`int`: Maximum value allowed for the :paramref:`~telegram.Poll.question`
+    parameter of :class:`telegram.Poll` and the :paramref:`~telegram.Bot.send_poll.question`
+    parameter of :meth:`telegram.Bot.send_poll`.
+    """
+    MIN_OPTION_LENGTH = 1
+    """:obj:`int`: Minimum length of each :obj:`str` passed in a :obj:`list`
+    to the :paramref:`~telegram.Bot.send_poll.options` parameter of
+    :meth:`telegram.Bot.send_poll`.
+    """
+    MAX_OPTION_LENGTH = 100
+    """:obj:`int`: Maximum length of each :obj:`str` passed in a :obj:`list`
+    to the :paramref:`~telegram.Bot.send_poll.options` parameter of
+    :meth:`telegram.Bot.send_poll`.
+    """
+    MIN_OPTION_NUMBER = 2
+    """:obj:`int`: Minimum number of strings passed in a :obj:`list`
+    to the :paramref:`~telegram.Bot.send_poll.options` parameter of
+    :meth:`telegram.Bot.send_poll`.
+    """
+    MAX_OPTION_NUMBER = 10
+    """:obj:`int`: Maximum number of strings passed in a :obj:`list`
+    to the :paramref:`~telegram.Bot.send_poll.options` parameter of
+    :meth:`telegram.Bot.send_poll`.
+    """
+    MAX_EXPLANATION_LENGTH = 200
+    """:obj:`int`: Maximum number of characters in a :obj:`str` passed as the
+    :paramref:`~telegram.Poll.explanation` parameter of :class:`telegram.Poll` and the
+    :paramref:`~telegram.Bot.send_poll.explanation` parameter of :meth:`telegram.Bot.send_poll`.
+    """
+    MAX_EXPLANATION_LINE_FEEDS = 2
+    """:obj:`int`: Maximum number of line feeds in a :obj:`str` passed as the
+    :paramref:`~telegram.Bot.send_poll.explanation` parameter of :meth:`telegram.Bot.send_poll`
+    after entities parsing.
+    """
+    MIN_OPEN_PERIOD = 5
+    """:obj:`int`: Minimum value allowed for the
+    :paramref:`~telegram.Bot.send_poll.open_period` parameter of :meth:`telegram.Bot.send_poll`.
+    Also used in the :paramref:`~telegram.Bot.send_poll.close_date` parameter of
+    :meth:`telegram.Bot.send_poll`.
+    """
+    MAX_OPEN_PERIOD = 600
+    """:obj:`int`: Maximum value allowed for the
+    :paramref:`~telegram.Bot.send_poll.open_period` parameter of :meth:`telegram.Bot.send_poll`.
+    Also used in the :paramref:`~telegram.Bot.send_poll.close_date` parameter of
+    :meth:`telegram.Bot.send_poll`.
+    """
 
 
 class PollType(StringEnum):
@@ -854,8 +1585,9 @@ class UpdateType(StringEnum):
 
 
 class InvoiceLimit(IntEnum):
-    """This enum contains limitations for :meth:`telegram.Bot.create_invoice_link`. The enum
-    members of this enumeration are instances of :class:`int` and can be treated as such.
+    """This enum contains limitations for :class:`telegram.InputInvoiceMessageContent`,
+    :meth:`telegram.Bot.send_invoice`, and :meth:`telegram.Bot.create_invoice_link`.
+    The enum members of this enumeration are instances of :class:`int` and can be treated as such.
 
     .. versionadded:: 20.0
     """
@@ -863,29 +1595,155 @@ class InvoiceLimit(IntEnum):
     __slots__ = ()
 
     MIN_TITLE_LENGTH = 1
-    """:obj:`int`: Minimum number of characters of the invoice title."""
+    """:obj:`int`: Minimum number of characters in a :obj:`str` passed as:
+
+    * :paramref:`~telegram.InputInvoiceMessageContent.title` parameter of
+      :class:`telegram.InputInvoiceMessageContent`
+    * :paramref:`~telegram.Bot.send_invoice.title` parameter of
+      :meth:`telegram.Bot.send_invoice`.
+    * :paramref:`~telegram.Bot.create_invoice_link.title` parameter of
+      :meth:`telegram.Bot.create_invoice_link`.
+    """
     MAX_TITLE_LENGTH = 32
-    """:obj:`int`: Maximum number of characters of the invoice title."""
+    """:obj:`int`: Maximum number of characters in a :obj:`str` passed as:
+
+    * :paramref:`~telegram.InputInvoiceMessageContent.title` parameter of
+      :class:`telegram.InputInvoiceMessageContent`
+    * :paramref:`~telegram.Bot.send_invoice.title` parameter of
+      :meth:`telegram.Bot.send_invoice`.
+    * :paramref:`~telegram.Bot.create_invoice_link.title` parameter of
+      :meth:`telegram.Bot.create_invoice_link`.
+    """
     MIN_DESCRIPTION_LENGTH = 1
-    """:obj:`int`: Minimum number of characters of the invoice description."""
+    """:obj:`int`: Minimum number of characters in a :obj:`str` passed as:
+
+    * :paramref:`~telegram.InputInvoiceMessageContent.description` parameter of
+      :class:`telegram.InputInvoiceMessageContent`
+    * :paramref:`~telegram.Bot.send_invoice.description` parameter of
+      :meth:`telegram.Bot.send_invoice`.
+    * :paramref:`~telegram.Bot.create_invoice_link.description` parameter of
+      :meth:`telegram.Bot.create_invoice_link`.
+    """
     MAX_DESCRIPTION_LENGTH = 255
-    """:obj:`int`: Maximum number of characters of the invoice description."""
+    """:obj:`int`: Maximum number of characters in a :obj:`str` passed as:
+
+    * :paramref:`~telegram.InputInvoiceMessageContent.description` parameter of
+      :class:`telegram.InputInvoiceMessageContent`
+    * :paramref:`~telegram.Bot.send_invoice.description` parameter of
+      :meth:`telegram.Bot.send_invoice`.
+    * :paramref:`~telegram.Bot.create_invoice_link.description` parameter of
+      :meth:`telegram.Bot.create_invoice_link`.
+    """
     MIN_PAYLOAD_LENGTH = 1
-    """:obj:`int`: Minimum amount of bytes for the internal payload."""
+    """:obj:`int`: Minimum amount of bytes in a :obj:`str` passed as:
+
+    * :paramref:`~telegram.InputInvoiceMessageContent.payload` parameter of
+      :class:`telegram.InputInvoiceMessageContent`
+    * :paramref:`~telegram.Bot.send_invoice.payload` parameter of
+      :meth:`telegram.Bot.send_invoice`.
+    * :paramref:`~telegram.Bot.create_invoice_link.payload` parameter of
+      :meth:`telegram.Bot.create_invoice_link`.
+    """
     MAX_PAYLOAD_LENGTH = 128
-    """:obj:`int`: Maximum amount of bytes for the internal payload."""
+    """:obj:`int`: Maximum amount of bytes in a :obj:`str` passed as:
+
+    * :paramref:`~telegram.InputInvoiceMessageContent.payload` parameter of
+      :class:`telegram.InputInvoiceMessageContent`
+    * :paramref:`~telegram.Bot.send_invoice.payload` parameter of
+      :meth:`telegram.Bot.send_invoice`.
+    * :paramref:`~telegram.Bot.create_invoice_link.payload` parameter of
+      :meth:`telegram.Bot.create_invoice_link`.
+    """
+    MAX_TIP_AMOUNTS = 4
+    """:obj:`int`: Maximum length of a :obj:`Sequence` passed as:
+
+    * :paramref:`~telegram.Bot.send_invoice.suggested_tip_amounts` parameter of
+      :meth:`telegram.Bot.send_invoice`.
+    * :paramref:`~telegram.Bot.create_invoice_link.suggested_tip_amounts` parameter of
+      :meth:`telegram.Bot.create_invoice_link`.
+    """
 
 
-class WebhookLimit(IntEnum):
-    """This enum contains limitations for :paramref:`telegram.Bot.set_webhook.secret_token`. The
-    enum members of this enumeration are instances of :class:`int` and can be treated as such.
+class UserProfilePhotosLimit(IntEnum):
+    """This enum contains limitations for :paramref:`telegram.Bot.get_user_profile_photos.limit`.
+    The enum members of this enumeration are instances of :class:`int` and can be treated as such.
 
     .. versionadded:: 20.0
     """
 
     __slots__ = ()
 
+    MIN_LIMIT = 1
+    """:obj:`int`: Minimum value allowed for
+    :paramref:`~telegram.Bot.get_user_profile_photos.limit` parameter of
+    :meth:`telegram.Bot.get_user_profile_photos`.
+    """
+    MAX_LIMIT = 100
+    """:obj:`int`: Maximum value allowed for
+    :paramref:`~telegram.Bot.get_user_profile_photos.limit` parameter of
+    :meth:`telegram.Bot.get_user_profile_photos`.
+    """
+
+
+class WebhookLimit(IntEnum):
+    """This enum contains limitations for :paramref:`telegram.Bot.set_webhook.max_connections` and
+    :paramref:`telegram.Bot.set_webhook.secret_token`. The enum members of this enumeration are
+    instances of :class:`int` and can be treated as such.
+
+    .. versionadded:: 20.0
+    """
+
+    __slots__ = ()
+
+    MIN_CONNECTIONS_LIMIT = 1
+    """:obj:`int`: Minimum value allowed for the
+    :paramref:`~telegram.Bot.set_webhook.max_connections` parameter of
+    :meth:`telegram.Bot.set_webhook`.
+    """
+    MAX_CONNECTIONS_LIMIT = 100
+    """:obj:`int`: Maximum value allowed for the
+    :paramref:`~telegram.Bot.set_webhook.max_connections` parameter of
+    :meth:`telegram.Bot.set_webhook`.
+    """
     MIN_SECRET_TOKEN_LENGTH = 1
-    """:obj:`int`: Minimum length of the secret token."""
+    """:obj:`int`: Minimum length of the secret token for the
+    :paramref:`~telegram.Bot.set_webhook.secret_token` parameter of
+    :meth:`telegram.Bot.set_webhook`.
+    """
     MAX_SECRET_TOKEN_LENGTH = 256
-    """:obj:`int`: Maximum length of the secret token."""
+    """:obj:`int`: Maximum length of the secret token for the
+    :paramref:`~telegram.Bot.set_webhook.secret_token` parameter of
+    :meth:`telegram.Bot.set_webhook`.
+    """
+
+
+class ForumTopicLimit(IntEnum):
+    """This enum contains limitations for :paramref:`telegram.Bot.create_forum_topic.name` and
+    :paramref:`telegram.Bot.edit_forum_topic.name`.
+    The enum members of this enumeration are instances of :class:`int` and can be treated as such.
+
+    .. versionadded:: 20.0
+    """
+
+    __slots__ = ()
+
+    MIN_NAME_LENGTH = 1
+    """:obj:`int`: Minimum length of a :obj:`str` passed as:
+
+    * :paramref:`~telegram.Bot.create_forum_topic.name` parameter of
+      :meth:`telegram.Bot.create_forum_topic`
+    * :paramref:`~telegram.Bot.edit_forum_topic.name` parameter of
+      :meth:`telegram.Bot.edit_forum_topic`
+    * :paramref:`~telegram.Bot.edit_general_forum_topic.name` parameter of
+      :meth:`telegram.Bot.edit_general_forum_topic`
+    """
+    MAX_NAME_LENGTH = 128
+    """:obj:`int`: Maximum length of a :obj:`str` passed as:
+
+    * :paramref:`~telegram.Bot.create_forum_topic.name` parameter of
+      :meth:`telegram.Bot.create_forum_topic`
+    * :paramref:`~telegram.Bot.edit_forum_topic.name` parameter of
+      :meth:`telegram.Bot.edit_forum_topic`
+    * :paramref:`~telegram.Bot.edit_general_forum_topic.name` parameter of
+      :meth:`telegram.Bot.edit_general_forum_topic`
+    """

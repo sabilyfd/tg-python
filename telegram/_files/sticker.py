@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -17,15 +17,19 @@
 # You should have received a copy of the GNU Lesser Public License
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 """This module contains objects that represent stickers."""
-
-from typing import TYPE_CHECKING, Any, ClassVar, List, Optional
+from typing import TYPE_CHECKING, Final, Optional, Sequence, Tuple
 
 from telegram import constants
 from telegram._files._basethumbedmedium import _BaseThumbedMedium
 from telegram._files.file import File
 from telegram._files.photosize import PhotoSize
 from telegram._telegramobject import TelegramObject
+from telegram._utils.argumentparsing import parse_sequence_arg
 from telegram._utils.types import JSONDict
+from telegram._utils.warnings_transition import (
+    warn_about_deprecated_attr_in_property,
+    warn_about_thumb_return_thumbnail,
+)
 
 if TYPE_CHECKING:
     from telegram import Bot
@@ -61,25 +65,36 @@ class Sticker(_BaseThumbedMedium):
             .. versionadded:: 20.0
         thumb (:class:`telegram.PhotoSize`, optional): Sticker thumbnail in the ``.WEBP`` or
             ``.JPG`` format.
+
+            .. deprecated:: 20.2
+               |thumbargumentdeprecation| :paramref:`thumbnail`.
         emoji (:obj:`str`, optional): Emoji associated with the sticker
-        set_name (:obj:`str`, optional): Name of the sticker set to which the sticker
-            belongs.
-        mask_position (:class:`telegram.MaskPosition`, optional): For mask stickers, the
-            position where the mask should be placed.
+        set_name (:obj:`str`, optional): Name of the sticker set to which the sticker belongs.
+        mask_position (:class:`telegram.MaskPosition`, optional): For mask stickers, the position
+            where the mask should be placed.
         file_size (:obj:`int`, optional): File size in bytes.
-        bot (:class:`telegram.Bot`, optional): The Bot to use for instance methods.
+
         premium_animation (:class:`telegram.File`, optional): For premium regular stickers,
             premium animation for the sticker.
 
             .. versionadded:: 20.0
-        custom_emoji (:obj:`str`, optional): For custom emoji stickers, unique identifier of the
+        custom_emoji_id (:obj:`str`, optional): For custom emoji stickers, unique identifier of the
             custom emoji.
 
             .. versionadded:: 20.0
-        _kwargs (:obj:`dict`): Arbitrary keyword arguments.
+        thumbnail (:class:`telegram.PhotoSize`, optional): Sticker thumbnail in the ``.WEBP`` or
+            ``.JPG`` format.
+
+            .. versionadded:: 20.2
+        needs_repainting (:obj:`bool`, optional): :obj:`True`, if the sticker must be repainted to
+            a text color in messages, the color of the Telegram Premium badge in emoji status,
+            white color on chat photos, or another appropriate color in other places.
+
+            .. versionadded:: 20.2
 
     Attributes:
-        file_id (:obj:`str`): Identifier for this file.
+        file_id (:obj:`str`): Identifier for this file, which can be used to download
+            or reuse the file.
         file_unique_id (:obj:`str`): Unique identifier for this file, which
             is supposed to be the same over time and for different bots.
             Can't be used to download or reuse the file.
@@ -94,22 +109,29 @@ class Sticker(_BaseThumbedMedium):
             format, which is determined by the fields :attr:`is_animated` and :attr:`is_video`.
 
             .. versionadded:: 20.0
-        thumb (:class:`telegram.PhotoSize`): Optional. Sticker thumbnail in the ``.WEBP`` or
-            ``.JPG`` format.
         emoji (:obj:`str`): Optional. Emoji associated with the sticker.
         set_name (:obj:`str`): Optional. Name of the sticker set to which the sticker belongs.
         mask_position (:class:`telegram.MaskPosition`): Optional. For mask stickers, the position
             where the mask should be placed.
         file_size (:obj:`int`): Optional. File size in bytes.
-        bot (:class:`telegram.Bot`): Optional. The Bot to use for instance methods.
+
         premium_animation (:class:`telegram.File`): Optional. For premium regular stickers,
             premium animation for the sticker.
 
             .. versionadded:: 20.0
-        custom_emoji (:obj:`str`): Optional. For custom emoji stickers, unique identifier of the
+        custom_emoji_id (:obj:`str`): Optional. For custom emoji stickers, unique identifier of the
             custom emoji.
 
             .. versionadded:: 20.0
+        thumbnail (:class:`telegram.PhotoSize`): Optional. Sticker thumbnail in the ``.WEBP`` or
+            ``.JPG`` format.
+
+            .. versionadded:: 20.2
+        needs_repainting (:obj:`bool`): Optional. :obj:`True`, if the sticker must be repainted to
+            a text color in messages, the color of the Telegram Premium badge in emoji status,
+            white color on chat photos, or another appropriate color in other places.
+
+            .. versionadded:: 20.2
     """
 
     __slots__ = (
@@ -123,6 +145,7 @@ class Sticker(_BaseThumbedMedium):
         "premium_animation",
         "type",
         "custom_emoji_id",
+        "needs_repainting",
     )
 
     def __init__(
@@ -134,41 +157,46 @@ class Sticker(_BaseThumbedMedium):
         is_animated: bool,
         is_video: bool,
         type: str,  # pylint: disable=redefined-builtin
-        thumb: PhotoSize = None,
-        emoji: str = None,
-        file_size: int = None,
-        set_name: str = None,
-        mask_position: "MaskPosition" = None,
-        bot: "Bot" = None,
-        premium_animation: "File" = None,
-        custom_emoji_id: str = None,
-        **_kwargs: Any,
+        thumb: Optional[PhotoSize] = None,
+        emoji: Optional[str] = None,
+        file_size: Optional[int] = None,
+        set_name: Optional[str] = None,
+        mask_position: Optional["MaskPosition"] = None,
+        premium_animation: Optional["File"] = None,
+        custom_emoji_id: Optional[str] = None,
+        thumbnail: Optional[PhotoSize] = None,
+        needs_repainting: Optional[bool] = None,
+        *,
+        api_kwargs: Optional[JSONDict] = None,
     ):
         super().__init__(
             file_id=file_id,
             file_unique_id=file_unique_id,
             file_size=file_size,
             thumb=thumb,
-            bot=bot,
+            thumbnail=thumbnail,
+            api_kwargs=api_kwargs,
         )
-        # Required
-        self.width = width
-        self.height = height
-        self.is_animated = is_animated
-        self.is_video = is_video
-        self.type = type
-        # Optional
-        self.emoji = emoji
-        self.set_name = set_name
-        self.mask_position = mask_position
-        self.premium_animation = premium_animation
-        self.custom_emoji_id = custom_emoji_id
+        with self._unfrozen():
+            # Required
+            self.width: int = width
+            self.height: int = height
+            self.is_animated: bool = is_animated
+            self.is_video: bool = is_video
+            self.type: str = type
+            # Optional
+            self.emoji: Optional[str] = emoji
+            self.set_name: Optional[str] = set_name
+            self.mask_position: Optional[MaskPosition] = mask_position
+            self.premium_animation: Optional[File] = premium_animation
+            self.custom_emoji_id: Optional[str] = custom_emoji_id
+            self.needs_repainting: Optional[bool] = needs_repainting
 
-    REGULAR: ClassVar[str] = constants.StickerType.REGULAR
+    REGULAR: Final[str] = constants.StickerType.REGULAR
     """:const:`telegram.constants.StickerType.REGULAR`"""
-    MASK: ClassVar[str] = constants.StickerType.MASK
+    MASK: Final[str] = constants.StickerType.MASK
     """:const:`telegram.constants.StickerType.MASK`"""
-    CUSTOM_EMOJI: ClassVar[str] = constants.StickerType.CUSTOM_EMOJI
+    CUSTOM_EMOJI: Final[str] = constants.StickerType.CUSTOM_EMOJI
     """:const:`telegram.constants.StickerType.CUSTOM_EMOJI`"""
 
     @classmethod
@@ -179,11 +207,17 @@ class Sticker(_BaseThumbedMedium):
         if not data:
             return None
 
-        data["thumb"] = PhotoSize.de_json(data.get("thumb"), bot)
+        data["thumbnail"] = PhotoSize.de_json(data.get("thumbnail"), bot)
         data["mask_position"] = MaskPosition.de_json(data.get("mask_position"), bot)
         data["premium_animation"] = File.de_json(data.get("premium_animation"), bot)
 
-        return cls(bot=bot, **data)
+        api_kwargs = {}
+        # This is a deprecated field that TG still returns for backwards compatibility
+        # Let's filter it out to speed up the de-json process
+        if data.get("thumb") is not None:
+            api_kwargs["thumb"] = data.pop("thumb")
+
+        return super()._de_json(data=data, bot=bot, api_kwargs=api_kwargs)
 
 
 class StickerSet(TelegramObject):
@@ -197,7 +231,7 @@ class StickerSet(TelegramObject):
         arguments had to be changed. Use keyword arguments to make sure that the arguments are
         passed correctly.
 
-    .. versionchanged:: 20.0:
+    .. versionchanged:: 20.0
         The parameter ``contains_masks`` has been removed. Use :paramref:`sticker_type` instead.
 
     Args:
@@ -207,7 +241,11 @@ class StickerSet(TelegramObject):
         is_video (:obj:`bool`): :obj:`True`, if the sticker set contains video stickers.
 
             .. versionadded:: 13.11
-        stickers (List[:class:`telegram.Sticker`]): List of all set stickers.
+        stickers (Sequence[:class:`telegram.Sticker`]): List of all set stickers.
+
+            .. versionchanged:: 20.0
+                |sequenceclassargs|
+
         sticker_type (:obj:`str`): Type of stickers in the set, currently one of
             :attr:`telegram.Sticker.REGULAR`, :attr:`telegram.Sticker.MASK`,
             :attr:`telegram.Sticker.CUSTOM_EMOJI`.
@@ -216,6 +254,13 @@ class StickerSet(TelegramObject):
         thumb (:class:`telegram.PhotoSize`, optional): Sticker set thumbnail in the ``.WEBP``,
             ``.TGS``, or ``.WEBM`` format.
 
+            .. deprecated:: 20.2
+               |thumbargumentdeprecation| :paramref:`thumbnail`.
+        thumbnail (:class:`telegram.PhotoSize`, optional): Sticker set thumbnail in the ``.WEBP``,
+            ``.TGS``, or ``.WEBM`` format.
+
+            .. versionadded:: 20.2
+
     Attributes:
         name (:obj:`str`): Sticker set name.
         title (:obj:`str`): Sticker set title.
@@ -223,13 +268,20 @@ class StickerSet(TelegramObject):
         is_video (:obj:`bool`): :obj:`True`, if the sticker set contains video stickers.
 
             .. versionadded:: 13.11
-        stickers (List[:class:`telegram.Sticker`]): List of all set stickers.
-        sticker_type (:obj:`str`): Type of stickers in the set.
+        stickers (Tuple[:class:`telegram.Sticker`]): List of all set stickers.
+
+            .. versionchanged:: 20.0
+                |tupleclassattrs|
+
+        sticker_type (:obj:`str`): Type of stickers in the set, currently one of
+            :attr:`telegram.Sticker.REGULAR`, :attr:`telegram.Sticker.MASK`,
+            :attr:`telegram.Sticker.CUSTOM_EMOJI`.
 
             .. versionadded:: 20.0
-        thumb (:class:`telegram.PhotoSize`): Optional. Sticker set thumbnail in the ``.WEBP``,
-            ``.TGS`` or ``.WEBM`` format.
+        thumbnail (:class:`telegram.PhotoSize`): Optional. Sticker set thumbnail in the ``.WEBP``,
+            ``.TGS``, or ``.WEBM`` format.
 
+            .. versionadded:: 20.2
     """
 
     __slots__ = (
@@ -237,7 +289,7 @@ class StickerSet(TelegramObject):
         "is_video",
         "name",
         "stickers",
-        "thumb",
+        "thumbnail",
         "title",
         "sticker_type",
     )
@@ -247,22 +299,44 @@ class StickerSet(TelegramObject):
         name: str,
         title: str,
         is_animated: bool,
-        stickers: List[Sticker],
+        stickers: Sequence[Sticker],
         is_video: bool,
         sticker_type: str,
-        thumb: PhotoSize = None,
-        **_kwargs: Any,
+        thumb: Optional[PhotoSize] = None,
+        thumbnail: Optional[PhotoSize] = None,
+        *,
+        api_kwargs: Optional[JSONDict] = None,
     ):
-        self.name = name
-        self.title = title
-        self.is_animated = is_animated
-        self.is_video = is_video
-        self.stickers = stickers
-        self.sticker_type = sticker_type
+        super().__init__(api_kwargs=api_kwargs)
+        self.name: str = name
+        self.title: str = title
+        self.is_animated: bool = is_animated
+        self.is_video: bool = is_video
+        self.stickers: Tuple[Sticker, ...] = parse_sequence_arg(stickers)
+        self.sticker_type: str = sticker_type
         # Optional
-        self.thumb = thumb
 
+        self.thumbnail: Optional[PhotoSize] = warn_about_thumb_return_thumbnail(
+            deprecated_arg=thumb, new_arg=thumbnail
+        )
         self._id_attrs = (self.name,)
+
+        self._freeze()
+
+    @property
+    def thumb(self) -> Optional[PhotoSize]:
+        """:class:`telegram.PhotoSize`: Optional. Sticker set thumbnail in the ``.WEBP``,
+        ``.TGS``, or ``.WEBM`` format.
+
+        .. deprecated:: 20.2
+           |thumbattributedeprecation| :attr:`thumbnail`.
+        """
+        warn_about_deprecated_attr_in_property(
+            deprecated_attr_name="thumb",
+            new_attr_name="thumbnail",
+            bot_api_version="6.6",
+        )
+        return self.thumbnail
 
     @classmethod
     def de_json(cls, data: Optional[JSONDict], bot: "Bot") -> Optional["StickerSet"]:
@@ -270,18 +344,17 @@ class StickerSet(TelegramObject):
         if not data:
             return None
 
-        data["thumb"] = PhotoSize.de_json(data.get("thumb"), bot)
+        data["thumbnail"] = PhotoSize.de_json(data.get("thumbnail"), bot)
         data["stickers"] = Sticker.de_list(data.get("stickers"), bot)
 
-        return cls(bot=bot, **data)
+        api_kwargs = {}
+        # These are deprecated fields that TG still returns for backwards compatibility
+        # Let's filter them out to speed up the de-json process
+        for deprecated_field in ("contains_masks", "thumb"):
+            if deprecated_field in data:
+                api_kwargs[deprecated_field] = data.pop(deprecated_field)
 
-    def to_dict(self) -> JSONDict:
-        """See :meth:`telegram.TelegramObject.to_dict`."""
-        data = super().to_dict()
-
-        data["stickers"] = [s.to_dict() for s in data.get("stickers")]  # type: ignore[union-attr]
-
-        return data
+        return super()._de_json(data=data, bot=bot, api_kwargs=api_kwargs)
 
 
 class MaskPosition(TelegramObject):
@@ -306,38 +379,41 @@ class MaskPosition(TelegramObject):
         point (:obj:`str`): The part of the face relative to which the mask should be placed.
             One of :attr:`FOREHEAD`, :attr:`EYES`, :attr:`MOUTH`, or :attr:`CHIN`.
         x_shift (:obj:`float`): Shift by X-axis measured in widths of the mask scaled to the face
-            size, from left to right.
+            size, from left to right. For example, choosing ``-1.0`` will place mask just to the
+            left of the default mask position.
         y_shift (:obj:`float`): Shift by Y-axis measured in heights of the mask scaled to the face
-            size, from top to bottom.
+            size, from top to bottom. For example, ``1.0`` will place the mask just below the
+            default mask position.
         scale (:obj:`float`): Mask scaling coefficient. For example, ``2.0`` means double size.
 
     """
 
     __slots__ = ("point", "scale", "x_shift", "y_shift")
 
-    FOREHEAD: ClassVar[str] = constants.MaskPosition.FOREHEAD
+    FOREHEAD: Final[str] = constants.MaskPosition.FOREHEAD
     """:const:`telegram.constants.MaskPosition.FOREHEAD`"""
-    EYES: ClassVar[str] = constants.MaskPosition.EYES
+    EYES: Final[str] = constants.MaskPosition.EYES
     """:const:`telegram.constants.MaskPosition.EYES`"""
-    MOUTH: ClassVar[str] = constants.MaskPosition.MOUTH
+    MOUTH: Final[str] = constants.MaskPosition.MOUTH
     """:const:`telegram.constants.MaskPosition.MOUTH`"""
-    CHIN: ClassVar[str] = constants.MaskPosition.CHIN
+    CHIN: Final[str] = constants.MaskPosition.CHIN
     """:const:`telegram.constants.MaskPosition.CHIN`"""
 
-    def __init__(self, point: str, x_shift: float, y_shift: float, scale: float, **_kwargs: Any):
-        self.point = point
-        self.x_shift = x_shift
-        self.y_shift = y_shift
-        self.scale = scale
+    def __init__(
+        self,
+        point: str,
+        x_shift: float,
+        y_shift: float,
+        scale: float,
+        *,
+        api_kwargs: Optional[JSONDict] = None,
+    ):
+        super().__init__(api_kwargs=api_kwargs)
+        self.point: str = point
+        self.x_shift: float = x_shift
+        self.y_shift: float = y_shift
+        self.scale: float = scale
 
         self._id_attrs = (self.point, self.x_shift, self.y_shift, self.scale)
 
-    @classmethod
-    def de_json(cls, data: Optional[JSONDict], bot: "Bot") -> Optional["MaskPosition"]:
-        """See :meth:`telegram.TelegramObject.de_json`."""
-        data = cls._parse_data(data)
-
-        if data is None:
-            return None
-
-        return cls(**data)
+        self._freeze()

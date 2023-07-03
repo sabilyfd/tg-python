@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -35,7 +35,7 @@ __all__ = (
     "TimedOut",
 )
 
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 
 
 def _lstrip_str(in_s: str, lstr: str) -> str:
@@ -48,15 +48,21 @@ def _lstrip_str(in_s: str, lstr: str) -> str:
         :obj:`str`: The stripped string.
 
     """
-    if in_s.startswith(lstr):
-        res = in_s[len(lstr) :]
-    else:
-        res = in_s
-    return res
+    return in_s[len(lstr) :] if in_s.startswith(lstr) else in_s
 
 
 class TelegramError(Exception):
-    """Base class for Telegram errors."""
+    """
+    Base class for Telegram errors.
+
+    Tip:
+        Objects of this type can be serialized via Python's :mod:`pickle` module and pickled
+        objects from one version of PTB are usually loadable in future versions. However, we can
+        not guarantee that this compatibility will always be provided. At least a manual one-time
+        conversion of the data may be needed on major updates of the library.
+
+    .. seealso:: :wiki:`Exceptions, Warnings and Logging <Exceptions%2C-Warnings-and-Logging>`
+    """
 
     __slots__ = ("message",)
 
@@ -69,7 +75,7 @@ class TelegramError(Exception):
         if msg != message:
             # api_error - capitalize the msg...
             msg = msg.capitalize()
-        self.message = msg
+        self.message: str = msg
 
     def __str__(self) -> str:
         return self.message
@@ -83,6 +89,9 @@ class TelegramError(Exception):
 
 class Forbidden(TelegramError):
     """Raised when the bot has not enough rights to perform the requested action.
+
+    Examples:
+        :any:`Raw API Bot <examples.rawapibot>`
 
     .. versionchanged:: 20.0
         This class was previously named ``Unauthorized``.
@@ -102,12 +111,16 @@ class InvalidToken(TelegramError):
 
     __slots__ = ()
 
-    def __init__(self, message: str = None) -> None:
+    def __init__(self, message: Optional[str] = None) -> None:
         super().__init__("Invalid token" if message is None else message)
 
 
 class NetworkError(TelegramError):
-    """Base class for exceptions due to networking errors."""
+    """Base class for exceptions due to networking errors.
+
+    Examples:
+        :any:`Raw API Bot <examples.rawapibot>`
+    """
 
     __slots__ = ()
 
@@ -129,13 +142,16 @@ class TimedOut(NetworkError):
 
     __slots__ = ()
 
-    def __init__(self, message: str = None) -> None:
+    def __init__(self, message: Optional[str] = None) -> None:
         super().__init__(message or "Timed out")
 
 
 class ChatMigrated(TelegramError):
     """
     Raised when the requested group chat migrated to supergroup and has a new chat id.
+
+    .. seealso::
+        :wiki:`Storing Bot, User and Chat Related Data <Storing-bot%2C-user-and-chat-related-data>`
 
     Args:
         new_chat_id (:obj:`int`): The new chat id of the group.
@@ -149,7 +165,7 @@ class ChatMigrated(TelegramError):
 
     def __init__(self, new_chat_id: int):
         super().__init__(f"Group migrated to supergroup. New chat id: {new_chat_id}")
-        self.new_chat_id = new_chat_id
+        self.new_chat_id: int = new_chat_id
 
     def __reduce__(self) -> Tuple[type, Tuple[int]]:  # type: ignore[override]
         return self.__class__, (self.new_chat_id,)
@@ -174,7 +190,7 @@ class RetryAfter(TelegramError):
 
     def __init__(self, retry_after: int):
         super().__init__(f"Flood control exceeded. Retry in {retry_after} seconds")
-        self.retry_after = retry_after
+        self.retry_after: int = retry_after
 
     def __reduce__(self) -> Tuple[type, Tuple[float]]:  # type: ignore[override]
         return self.__class__, (self.retry_after,)

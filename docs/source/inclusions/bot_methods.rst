@@ -157,6 +157,23 @@
       - Used for getting the number of members in a chat
     * - :meth:`~telegram.Bot.get_chat_member`
       - Used for getting a member of a chat
+    * - :meth:`~telegram.Bot.leave_chat`
+      - Used for leaving a chat
+
+.. raw:: html
+
+   </details>
+   <br>
+
+.. raw:: html
+
+   <details>
+   <summary>Bot settings</summary>
+
+.. list-table::
+    :align: left
+    :widths: 1 4
+
     * - :meth:`~telegram.Bot.set_my_commands`
       - Used for setting the list of commands
     * - :meth:`~telegram.Bot.delete_my_commands`
@@ -171,8 +188,18 @@
       - Used for obtaining the menu button of a private chat or the default menu button
     * - :meth:`~telegram.Bot.set_chat_menu_button`
       - Used for setting the menu button of a private chat or the default menu button
-    * - :meth:`~telegram.Bot.leave_chat`
-      - Used for leaving a chat
+    * - :meth:`~telegram.Bot.set_my_description`
+      - Used for setting the description of the bot
+    * - :meth:`~telegram.Bot.get_my_description`
+      - Used for obtaining the description of the bot
+    * - :meth:`~telegram.Bot.set_my_short_description`
+      - Used for setting the short description of the bot
+    * - :meth:`~telegram.Bot.get_my_short_description`
+      - Used for obtaining the short description of the bot
+    * - :meth:`~telegram.Bot.set_my_name`
+      - Used for setting the name of the bot
+    * - :meth:`~telegram.Bot.get_my_name`
+      - Used for obtaining the name of the bot
 
 .. raw:: html
 
@@ -194,14 +221,26 @@
       - Used for deleting a sticker from a set
     * - :meth:`~telegram.Bot.create_new_sticker_set`
       - Used for creating a new sticker set
+    * - :meth:`~telegram.Bot.delete_sticker_set`
+      - Used for deleting a sticker set made by a bot
     * - :meth:`~telegram.Bot.set_chat_sticker_set`
-      - Used for setting a sticker set
+      - Used for setting a sticker set of a chat
     * - :meth:`~telegram.Bot.delete_chat_sticker_set`
-      - Used for deleting the set sticker set
+      - Used for deleting the set sticker set of a chat
     * - :meth:`~telegram.Bot.set_sticker_position_in_set`
       - Used for moving a sticker's position in the set
+    * - :meth:`~telegram.Bot.set_sticker_set_title`
+      - Used for setting the title of a sticker set
+    * - :meth:`~telegram.Bot.set_sticker_emoji_list`
+      - Used for setting the emoji list of a sticker
+    * - :meth:`~telegram.Bot.set_sticker_keywords`
+      - Used for setting the keywords of a sticker
+    * - :meth:`~telegram.Bot.set_sticker_mask_position`
+      - Used for setting the mask position of a mask sticker
     * - :meth:`~telegram.Bot.set_sticker_set_thumb`
       - Used for setting the thumbnail of a sticker set
+    * - :meth:`~telegram.Bot.set_custom_emoji_sticker_set_thumbnail`
+      - Used for setting the thumbnail of a custom emoji sticker set
     * - :meth:`~telegram.Bot.get_sticker_set`
       - Used for getting a sticker set
     * - :meth:`~telegram.Bot.upload_sticker_file`
@@ -259,6 +298,45 @@
 .. raw:: html
 
    <details>
+   <summary>Forum topic management</summary>
+
+.. list-table::
+    :align: left
+    :widths: 1 4
+
+    * - :meth:`~telegram.Bot.close_forum_topic`
+      - Used for closing a forum topic
+    * - :meth:`~telegram.Bot.close_general_forum_topic`
+      - Used for closing the general forum topic
+    * - :meth:`~telegram.Bot.create_forum_topic`
+      - Used to create a topic
+    * - :meth:`~telegram.Bot.delete_forum_topic`
+      - Used for deleting a forum topic
+    * - :meth:`~telegram.Bot.edit_forum_topic`
+      - Used to edit a topic
+    * - :meth:`~telegram.Bot.edit_general_forum_topic`
+      - Used to edit the general topic
+    * - :meth:`~telegram.Bot.get_forum_topic_icon_stickers`
+      - Used to get custom emojis to use as topic icons
+    * - :meth:`~telegram.Bot.hide_general_forum_topic`
+      - Used to hide the general topic
+    * - :meth:`~telegram.Bot.unhide_general_forum_topic`
+      - Used to unhide the general topic
+    * - :meth:`~telegram.Bot.reopen_forum_topic`
+      - Used to reopen a topic
+    * - :meth:`~telegram.Bot.reopen_general_forum_topic`
+      - Used to reopen the general topic
+    * - :meth:`~telegram.Bot.unpin_all_forum_topic_messages`
+      - Used to unpin all messages in a forum topic
+
+.. raw:: html
+
+   </details>
+   <br>
+
+.. raw:: html
+
+   <details>
    <summary>Miscellaneous</summary>
 
 .. list-table::
@@ -290,6 +368,10 @@
     :align: left
     :widths: 1 4
 
+    * - :attr:`~telegram.Bot.base_file_url`
+      - Telegram Bot API file URL
+    * - :attr:`~telegram.Bot.base_url`
+      - Telegram Bot API service URL
     * - :attr:`~telegram.Bot.bot`
       - The user instance of the bot as returned by :meth:`~telegram.Bot.get_me`
     * - :attr:`~telegram.Bot.can_join_groups`
@@ -304,12 +386,18 @@
       - The first name of the bot
     * - :attr:`~telegram.Bot.last_name`
       - The last name of the bot
+    * - :attr:`~telegram.Bot.local_mode`
+      - Whether the bot is running in local mode
     * - :attr:`~telegram.Bot.username`
       - The username of the bot, without leading ``@``
     * - :attr:`~telegram.Bot.link`
       - The t.me link of the bot
+    * - :attr:`~telegram.Bot.private_key`
+      - Deserialized private key for decryption of telegram passport data
     * - :attr:`~telegram.Bot.supports_inline_queries`
       - Whether the bot supports inline queries
+    * - :attr:`~telegram.Bot.token`
+      - Bot's unique authentication token
 
 .. raw:: html
 

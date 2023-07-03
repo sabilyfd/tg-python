@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -28,10 +28,11 @@ from telegram import (
     MenuButtonWebApp,
     WebAppInfo,
 )
+from tests.auxil.slots import mro_slots
 
 
 @pytest.fixture(
-    scope="class",
+    scope="module",
     params=[
         MenuButton.DEFAULT,
         MenuButton.WEB_APP,
@@ -43,7 +44,7 @@ def scope_type(request):
 
 
 @pytest.fixture(
-    scope="class",
+    scope="module",
     params=[
         MenuButtonDefault,
         MenuButtonCommands,
@@ -60,7 +61,7 @@ def scope_class(request):
 
 
 @pytest.fixture(
-    scope="class",
+    scope="module",
     params=[
         (MenuButtonDefault, MenuButton.DEFAULT),
         (MenuButtonCommands, MenuButton.COMMANDS),
@@ -76,19 +77,27 @@ def scope_class_and_type(request):
     return request.param
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def menu_button(scope_class_and_type):
-    return scope_class_and_type[0](
-        type=scope_class_and_type[1], text=TestMenuButton.text, web_app=TestMenuButton.web_app
+    # We use de_json here so that we don't have to worry about which class gets which arguments
+    return scope_class_and_type[0].de_json(
+        {
+            "type": scope_class_and_type[1],
+            "text": TestMenuButtonselfBase.text,
+            "web_app": TestMenuButtonselfBase.web_app.to_dict(),
+        },
+        bot=None,
     )
 
 
-# All the scope types are very similar, so we test everything via parametrization
-class TestMenuButton:
+class TestMenuButtonselfBase:
     text = "button_text"
     web_app = WebAppInfo(url="https://python-telegram-bot.org/web_app")
 
-    def test_slot_behaviour(self, menu_button, mro_slots):
+
+# All the scope types are very similar, so we test everything via parametrization
+class TestMenuButtonWithoutRequest(TestMenuButtonselfBase):
+    def test_slot_behaviour(self, menu_button):
         for attr in menu_button.__slots__:
             assert getattr(menu_button, attr, "err") != "err", f"got extra slot '{attr}'"
         assert len(mro_slots(menu_button)) == len(set(mro_slots(menu_button))), "duplicate slot"
@@ -97,11 +106,9 @@ class TestMenuButton:
         cls = scope_class_and_type[0]
         type_ = scope_class_and_type[1]
 
-        assert cls.de_json({}, bot) is None
-        assert cls.de_json(None, bot) is None
-
         json_dict = {"type": type_, "text": self.text, "web_app": self.web_app.to_dict()}
         menu_button = MenuButton.de_json(json_dict, bot)
+        assert set(menu_button.api_kwargs.keys()) == {"text", "web_app"} - set(cls.__slots__)
 
         assert isinstance(menu_button, MenuButton)
         assert type(menu_button) is cls
@@ -111,9 +118,13 @@ class TestMenuButton:
         if "text" in cls.__slots__:
             assert menu_button.text == self.text
 
+        assert cls.de_json(None, bot) is None
+        assert MenuButton.de_json({}, bot) is None
+
     def test_de_json_invalid_type(self, bot):
         json_dict = {"type": "invalid", "text": self.text, "web_app": self.web_app.to_dict()}
         menu_button = MenuButton.de_json(json_dict, bot)
+        assert menu_button.api_kwargs == {"text": self.text, "web_app": self.web_app.to_dict()}
 
         assert type(menu_button) is MenuButton
         assert menu_button.type == "invalid"

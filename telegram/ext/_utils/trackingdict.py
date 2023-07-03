@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -26,7 +26,7 @@ Warning:
     the changelog.
 """
 from collections import UserDict
-from typing import ClassVar, Generic, List, Mapping, Set, Tuple, TypeVar, Union
+from typing import Final, Generic, List, Mapping, Optional, Set, Tuple, TypeVar, Union
 
 from telegram._utils.defaultvalue import DEFAULT_NONE, DefaultValue
 
@@ -45,7 +45,7 @@ class TrackingDict(UserDict, Generic[_KT, _VT]):
         * deleting values is considered writing
     """
 
-    DELETED: ClassVar = object()
+    DELETED: Final = object()
     """Special marker indicating that an entry was deleted."""
 
     __slots__ = ("_write_access_keys",)
@@ -113,7 +113,7 @@ class TrackingDict(UserDict, Generic[_KT, _VT]):
 
     # Mypy seems a bit inconsistent about what it wants as types for `default` and return value
     # so we just ignore a bit
-    def setdefault(self: "TrackingDict[_KT, _T]", key: _KT, default: _T = None) -> _T:
+    def setdefault(self: "TrackingDict[_KT, _T]", key: _KT, default: Optional[_T] = None) -> _T:
         if key in self:
             return self[key]
 

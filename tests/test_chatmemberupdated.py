@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -20,7 +20,6 @@ import datetime
 import inspect
 
 import pytest
-import pytz
 
 from telegram import (
     Chat,
@@ -32,29 +31,30 @@ from telegram import (
     ChatMemberUpdated,
     User,
 )
-from telegram._utils.datetime import to_timestamp
+from telegram._utils.datetime import UTC, to_timestamp
+from tests.auxil.slots import mro_slots
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def user():
     return User(1, "First name", False)
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def chat():
     return Chat(1, Chat.SUPERGROUP, "Chat")
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def old_chat_member(user):
-    return ChatMember(user, TestChatMemberUpdated.old_status)
+    return ChatMember(user, TestChatMemberUpdatedBase.old_status)
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def new_chat_member(user):
     return ChatMemberAdministrator(
         user,
-        TestChatMemberUpdated.new_status,
+        TestChatMemberUpdatedBase.new_status,
         True,
         True,
         True,
@@ -67,26 +67,28 @@ def new_chat_member(user):
     )
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def time():
-    return datetime.datetime.now(tz=pytz.utc)
+    return datetime.datetime.now(tz=UTC)
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def invite_link(user):
     return ChatInviteLink("link", user, False, True, True)
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def chat_member_updated(user, chat, old_chat_member, new_chat_member, invite_link, time):
-    return ChatMemberUpdated(chat, user, time, old_chat_member, new_chat_member, invite_link)
+    return ChatMemberUpdated(chat, user, time, old_chat_member, new_chat_member, invite_link, True)
 
 
-class TestChatMemberUpdated:
+class TestChatMemberUpdatedBase:
     old_status = ChatMember.MEMBER
     new_status = ChatMember.ADMINISTRATOR
 
-    def test_slot_behaviour(self, mro_slots, chat_member_updated):
+
+class TestChatMemberUpdatedWithoutRequest(TestChatMemberUpdatedBase):
+    def test_slot_behaviour(self, chat_member_updated):
         action = chat_member_updated
         for attr in action.__slots__:
             assert getattr(action, attr, "err") != "err", f"got extra slot '{attr}'"
@@ -102,6 +104,7 @@ class TestChatMemberUpdated:
         }
 
         chat_member_updated = ChatMemberUpdated.de_json(json_dict, bot)
+        assert chat_member_updated.api_kwargs == {}
 
         assert chat_member_updated.chat == chat
         assert chat_member_updated.from_user == user
@@ -110,6 +113,7 @@ class TestChatMemberUpdated:
         assert chat_member_updated.old_chat_member == old_chat_member
         assert chat_member_updated.new_chat_member == new_chat_member
         assert chat_member_updated.invite_link is None
+        assert chat_member_updated.via_chat_folder_invite_link is None
 
     def test_de_json_all_args(
         self, bot, user, time, invite_link, chat, old_chat_member, new_chat_member
@@ -121,9 +125,11 @@ class TestChatMemberUpdated:
             "old_chat_member": old_chat_member.to_dict(),
             "new_chat_member": new_chat_member.to_dict(),
             "invite_link": invite_link.to_dict(),
+            "via_chat_folder_invite_link": True,
         }
 
         chat_member_updated = ChatMemberUpdated.de_json(json_dict, bot)
+        assert chat_member_updated.api_kwargs == {}
 
         assert chat_member_updated.chat == chat
         assert chat_member_updated.from_user == user
@@ -132,6 +138,33 @@ class TestChatMemberUpdated:
         assert chat_member_updated.old_chat_member == old_chat_member
         assert chat_member_updated.new_chat_member == new_chat_member
         assert chat_member_updated.invite_link == invite_link
+        assert chat_member_updated.via_chat_folder_invite_link is True
+
+    def test_de_json_localization(
+        self, bot, raw_bot, tz_bot, user, chat, old_chat_member, new_chat_member, time, invite_link
+    ):
+        json_dict = {
+            "chat": chat.to_dict(),
+            "from": user.to_dict(),
+            "date": to_timestamp(time),
+            "old_chat_member": old_chat_member.to_dict(),
+            "new_chat_member": new_chat_member.to_dict(),
+            "invite_link": invite_link.to_dict(),
+        }
+
+        chat_member_updated_bot = ChatMemberUpdated.de_json(json_dict, bot)
+        chat_member_updated_raw = ChatMemberUpdated.de_json(json_dict, raw_bot)
+        chat_member_updated_tz = ChatMemberUpdated.de_json(json_dict, tz_bot)
+
+        # comparing utcoffsets because comparing timezones is unpredicatable
+        message_offset = chat_member_updated_tz.date.utcoffset()
+        tz_bot_offset = tz_bot.defaults.tzinfo.utcoffset(
+            chat_member_updated_tz.date.replace(tzinfo=None)
+        )
+
+        assert chat_member_updated_raw.date.tzinfo == UTC
+        assert chat_member_updated_bot.date.tzinfo == UTC
+        assert message_offset == tz_bot_offset
 
     def test_to_dict(self, chat_member_updated):
         chat_member_updated_dict = chat_member_updated.to_dict()
@@ -148,6 +181,10 @@ class TestChatMemberUpdated:
             == chat_member_updated.new_chat_member.to_dict()
         )
         assert chat_member_updated_dict["invite_link"] == chat_member_updated.invite_link.to_dict()
+        assert (
+            chat_member_updated_dict["via_chat_folder_invite_link"]
+            == chat_member_updated.via_chat_folder_invite_link
+        )
 
     def test_equality(self, time, old_chat_member, new_chat_member, invite_link):
         a = ChatMemberUpdated(
@@ -215,7 +252,10 @@ class TestChatMemberUpdated:
         # We deliberately change an optional argument here to make sure that comparison doesn't
         # just happens by id/required args
         new_user = User(1, "First name", False, last_name="last name")
-        new_chat_member.user = new_user
+        new_chat_member = ChatMember(new_user, "new_status")
+        chat_member_updated = ChatMemberUpdated(
+            chat, user, datetime.datetime.utcnow(), old_chat_member, new_chat_member
+        )
         assert chat_member_updated.difference() == {
             "status": ("old_status", "new_status"),
             "user": (user, new_user),
@@ -226,17 +266,18 @@ class TestChatMemberUpdated:
         # This gives the names of all optional arguments of ChatMember
         [
             name
-            for name, param in inspect.signature(ChatMember).parameters.items()
-            if name != "self" and param.default != inspect.Parameter.empty
+            for name, param in inspect.signature(ChatMemberAdministrator).parameters.items()
+            if name not in ["self", "api_kwargs"] and param.default != inspect.Parameter.empty
         ],
     )
     def test_difference_optionals(self, optional_attribute, user, chat):
-        # we use datetimes here, because we need that for `until_date` and it doesn't matter for
-        # the other attributes
-        old_value = datetime.datetime(2020, 1, 1)
-        new_value = datetime.datetime(2021, 1, 1)
-        old_chat_member = ChatMember(user, "status", **{optional_attribute: old_value})
-        new_chat_member = ChatMember(user, "status", **{optional_attribute: new_value})
+        # We test with ChatMemberAdministrator, since that's currently the only interesting class
+        # with optional arguments
+        old_value = "old_value"
+        new_value = "new_value"
+        trues = tuple(True for _ in range(9))
+        old_chat_member = ChatMemberAdministrator(user, *trues, **{optional_attribute: old_value})
+        new_chat_member = ChatMemberAdministrator(user, *trues, **{optional_attribute: new_value})
         chat_member_updated = ChatMemberUpdated(
             chat, user, datetime.datetime.utcnow(), old_chat_member, new_chat_member
         )

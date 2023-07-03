@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -111,6 +111,9 @@ class BasePersistence(Generic[UD, CD, BD], ABC):
        type of the argument of :meth:`refresh_bot_data` and the return value of
        :meth:`get_bot_data`.
 
+    .. seealso:: :wiki:`Architecture Overview <Architecture>`,
+        :wiki:`Making Your Bot Persistent <Making-your-bot-persistent>`
+
     .. versionchanged:: 20.0
 
         * The parameters and attributes ``store_*_data`` were replaced by :attr:`store_data`.
@@ -118,9 +121,9 @@ class BasePersistence(Generic[UD, CD, BD], ABC):
           handled by the specific implementation - see above note.
 
     Args:
-        store_data (:class:`PersistenceInput`, optional): Specifies which kinds of data will be
-            saved by this persistence instance. By default, all available kinds of data will be
-            saved.
+        store_data (:class:`~telegram.ext.PersistenceInput`, optional): Specifies which kinds of
+            data will be saved by this persistence instance. By default, all available kinds of
+            data will be saved.
         update_interval (:obj:`int` | :obj:`float`, optional): The
             :class:`~telegram.ext.Application` will update
             the persistence in regular intervals. This parameter specifies the time (in seconds) to
@@ -128,10 +131,9 @@ class BasePersistence(Generic[UD, CD, BD], ABC):
             seconds.
 
             .. versionadded:: 20.0
-
     Attributes:
-        store_data (:class:`PersistenceInput`): Specifies which kinds of data will be saved by this
-            persistence instance.
+        store_data (:class:`~telegram.ext.PersistenceInput`): Specifies which kinds of data will
+            be saved by this persistence instance.
         bot (:class:`telegram.Bot`): The bot associated with the persistence.
     """
 
@@ -143,11 +145,11 @@ class BasePersistence(Generic[UD, CD, BD], ABC):
 
     def __init__(
         self,
-        store_data: PersistenceInput = None,
+        store_data: Optional[PersistenceInput] = None,
         update_interval: float = 60,
     ):
-        self.store_data = store_data or PersistenceInput()
-        self._update_interval = update_interval
+        self.store_data: PersistenceInput = store_data or PersistenceInput()
+        self._update_interval: float = update_interval
 
         self.bot: Bot = None  # type: ignore[assignment]
 
@@ -161,7 +163,7 @@ class BasePersistence(Generic[UD, CD, BD], ABC):
         return self._update_interval
 
     @update_interval.setter
-    def update_interval(self, value: object) -> NoReturn:  # pylint: disable=no-self-use
+    def update_interval(self, value: object) -> NoReturn:
         raise AttributeError(
             "You can not assign a new value to update_interval after initialization."
         )
@@ -176,7 +178,7 @@ class BasePersistence(Generic[UD, CD, BD], ABC):
             :exc:`TypeError`: If :attr:`PersistenceInput.callback_data` is :obj:`True` and the
                 :paramref:`bot` is not an instance of :class:`telegram.ext.ExtBot`.
         """
-        if self.store_data.callback_data and not isinstance(bot, ExtBot):
+        if self.store_data.callback_data and (not isinstance(bot, ExtBot)):
             raise TypeError("callback_data can only be stored when using telegram.ext.ExtBot.")
 
         self.bot = bot
@@ -355,6 +357,11 @@ class BasePersistence(Generic[UD, CD, BD], ABC):
         :attr:`~telegram.ext.Application.user_data` to a callback. Can be used to update data
         stored in :attr:`~telegram.ext.Application.user_data` from an external source.
 
+        Warning:
+            When using :meth:`~telegram.ext.ApplicationBuilder.concurrent_updates`, this method
+            may be called while a handler callback is still running. This might lead to race
+            conditions.
+
         .. versionadded:: 13.6
 
         .. versionchanged:: 20.0
@@ -373,6 +380,11 @@ class BasePersistence(Generic[UD, CD, BD], ABC):
         :attr:`~telegram.ext.Application.chat_data` to a callback. Can be used to update data
         stored in :attr:`~telegram.ext.Application.chat_data` from an external source.
 
+        Warning:
+            When using :meth:`~telegram.ext.ApplicationBuilder.concurrent_updates`, this method
+            may be called while a handler callback is still running. This might lead to race
+            conditions.
+
         .. versionadded:: 13.6
 
         .. versionchanged:: 20.0
@@ -390,6 +402,11 @@ class BasePersistence(Generic[UD, CD, BD], ABC):
         """Will be called by the :class:`telegram.ext.Application` before passing the
         :attr:`~telegram.ext.Application.bot_data` to a callback. Can be used to update data stored
         in :attr:`~telegram.ext.Application.bot_data` from an external source.
+
+        Warning:
+            When using :meth:`~telegram.ext.ApplicationBuilder.concurrent_updates`, this method
+            may be called while a handler callback is still running. This might lead to race
+            conditions.
 
         .. versionadded:: 13.6
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -19,9 +19,10 @@
 import pytest
 
 from telegram import ChatAdministratorRights
+from tests.auxil.slots import mro_slots
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def chat_admin_rights():
     return ChatAdministratorRights(
         can_change_info=True,
@@ -34,12 +35,13 @@ def chat_admin_rights():
         can_edit_messages=True,
         can_manage_chat=True,
         can_manage_video_chats=True,
+        can_manage_topics=True,
         is_anonymous=True,
     )
 
 
-class TestChatAdministratorRights:
-    def test_slot_behaviour(self, chat_admin_rights, mro_slots):
+class TestChatAdministratorRightsWithoutRequest:
+    def test_slot_behaviour(self, chat_admin_rights):
         inst = chat_admin_rights
         for attr in inst.__slots__:
             assert getattr(inst, attr, "err") != "err", f"got extra slot '{attr}'"
@@ -57,9 +59,11 @@ class TestChatAdministratorRights:
             "can_edit_messages": True,
             "can_manage_chat": True,
             "can_manage_video_chats": True,
+            "can_manage_topics": True,
             "is_anonymous": True,
         }
         chat_administrator_rights_de = ChatAdministratorRights.de_json(json_dict, bot)
+        assert chat_administrator_rights_de.api_kwargs == {}
 
         assert chat_admin_rights == chat_administrator_rights_de
 
@@ -79,13 +83,14 @@ class TestChatAdministratorRights:
         assert admin_rights_dict["can_manage_chat"] == car.can_manage_chat
         assert admin_rights_dict["is_anonymous"] == car.is_anonymous
         assert admin_rights_dict["can_manage_video_chats"] == car.can_manage_video_chats
+        assert admin_rights_dict["can_manage_topics"] == car.can_manage_topics
 
     def test_equality(self):
-        a = ChatAdministratorRights(True, False, False, False, False, False, False, False)
-        b = ChatAdministratorRights(True, False, False, False, False, False, False, False)
-        c = ChatAdministratorRights(False, False, False, False, False, False, False, False)
-        d = ChatAdministratorRights(True, True, False, False, False, False, False, False)
-        e = ChatAdministratorRights(True, True, False, False, False, False, False, False)
+        a = ChatAdministratorRights(True, False, False, False, False, False, False, False, False)
+        b = ChatAdministratorRights(True, False, False, False, False, False, False, False, False)
+        c = ChatAdministratorRights(False, False, False, False, False, False, False, False, False)
+        d = ChatAdministratorRights(True, True, False, False, False, False, False, False, False)
+        e = ChatAdministratorRights(True, True, False, False, False, False, False, False, False)
 
         assert a == b
         assert hash(a) == hash(b)
@@ -101,7 +106,7 @@ class TestChatAdministratorRights:
         assert hash(d) == hash(e)
 
     def test_all_rights(self):
-        f = ChatAdministratorRights(True, True, True, True, True, True, True, True)
+        f = ChatAdministratorRights(True, True, True, True, True, True, True, True, True)
         t = ChatAdministratorRights.all_rights()
         # if the dirs are the same, the attributes will all be there
         assert dir(f) == dir(t)
@@ -113,7 +118,7 @@ class TestChatAdministratorRights:
         assert f != t
 
     def test_no_rights(self):
-        f = ChatAdministratorRights(False, False, False, False, False, False, False, False)
+        f = ChatAdministratorRights(False, False, False, False, False, False, False, False, False)
         t = ChatAdministratorRights.no_rights()
         # if the dirs are the same, the attributes will all be there
         assert dir(f) == dir(t)

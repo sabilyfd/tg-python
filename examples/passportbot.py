@@ -10,6 +10,9 @@ See https://telegram.org/blog/passport for info about what telegram passport is.
 See https://github.com/python-telegram-bot/python-telegram-bot/wiki/Telegram-Passport
  for how to use Telegram Passport properly with python-telegram-bot.
 
+Note:
+To use Telegram Passport, you must install PTB via
+`pip install "python-telegram-bot[passport]"`
 """
 import logging
 from pathlib import Path
@@ -21,7 +24,7 @@ try:
 except ImportError:
     __version_info__ = (0, 0, 0, 0, 0)  # type: ignore[assignment]
 
-if __version_info__ < (20, 0, 0, "alpha", 1):
+if __version_info__ < (20, 0, 0, "alpha", 5):
     raise RuntimeError(
         f"This example is not compatible with your current PTB version {TG_VER}. To view the "
         f"{TG_VER} version of this example, "
@@ -35,6 +38,9 @@ from telegram.ext import Application, ContextTypes, MessageHandler, filters
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
+
+# set higher logging level for httpx to avoid all GET and POST requests being logged
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
@@ -77,25 +83,25 @@ async def msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             for file in data.files:
                 actual_file = await file.get_file()
                 print(actual_file)
-                await actual_file.download()
+                await actual_file.download_to_drive()
         if (
             data.type in ("passport", "driver_license", "identity_card", "internal_passport")
             and data.front_side
         ):
             front_file = await data.front_side.get_file()
             print(data.type, front_file)
-            await front_file.download()
+            await front_file.download_to_drive()
         if data.type in ("driver_license" and "identity_card") and data.reverse_side:
             reverse_file = await data.reverse_side.get_file()
             print(data.type, reverse_file)
-            await reverse_file.download()
+            await reverse_file.download_to_drive()
         if (
             data.type in ("passport", "driver_license", "identity_card", "internal_passport")
             and data.selfie
         ):
             selfie_file = await data.selfie.get_file()
             print(data.type, selfie_file)
-            await selfie_file.download()
+            await selfie_file.download_to_drive()
         if data.translation and data.type in (
             "passport",
             "driver_license",
@@ -111,7 +117,7 @@ async def msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             for file in data.translation:
                 actual_file = await file.get_file()
                 print(actual_file)
-                await actual_file.download()
+                await actual_file.download_to_drive()
 
 
 def main() -> None:
@@ -126,7 +132,7 @@ def main() -> None:
     application.add_handler(MessageHandler(filters.PASSPORT_DATA, msg))
 
     # Run the bot until the user presses Ctrl-C
-    application.run_polling()
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":

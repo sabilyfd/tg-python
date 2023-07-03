@@ -2,6 +2,7 @@ Inline Mode
 -----------
 
 .. toctree::
+    :titlesonly:
 
     telegram.choseninlineresult
     telegram.inlinequery
@@ -23,6 +24,7 @@ Inline Mode
     telegram.inlinequeryresultlocation
     telegram.inlinequeryresultmpeg4gif
     telegram.inlinequeryresultphoto
+    telegram.inlinequeryresultsbutton
     telegram.inlinequeryresultvenue
     telegram.inlinequeryresultvideo
     telegram.inlinequeryresultvoice

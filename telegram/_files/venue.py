@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 """This module contains an object that represents a Telegram Venue."""
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional
 
 from telegram._files.location import Location
 from telegram._telegramobject import TelegramObject
@@ -35,7 +35,7 @@ class Venue(TelegramObject):
     considered equal, if their :attr:`location` and :attr:`title` are equal.
 
     Note:
-      Foursquare details and Google Pace details are mutually exclusive. However, this
+      Foursquare details and Google Place details are mutually exclusive. However, this
       behaviour is undocumented and might be changed by Telegram.
 
     Args:
@@ -49,16 +49,18 @@ class Venue(TelegramObject):
         google_place_type (:obj:`str`, optional): Google Places type of the venue. (See
             `supported types <https://developers.google.com/maps/documentation/places/web-service\
             /supported_types>`_.)
-        **kwargs (:obj:`dict`): Arbitrary keyword arguments.
 
     Attributes:
         location (:class:`telegram.Location`): Venue location.
         title (:obj:`str`): Name of the venue.
         address (:obj:`str`): Address of the venue.
         foursquare_id (:obj:`str`): Optional. Foursquare identifier of the venue.
-        foursquare_type (:obj:`str`): Optional. Foursquare type of the venue.
+        foursquare_type (:obj:`str`): Optional. Foursquare type of the venue. (For example,
+            "arts_entertainment/default", "arts_entertainment/aquarium" or "food/icecream".)
         google_place_id (:obj:`str`): Optional. Google Places identifier of the venue.
-        google_place_type (:obj:`str`): Optional. Google Places type of the venue.
+        google_place_type (:obj:`str`): Optional. Google Places type of the venue. (See
+            `supported types <https://developers.google.com/maps/documentation/places/web-service\
+            /supported_types>`_.)
 
     """
 
@@ -77,23 +79,28 @@ class Venue(TelegramObject):
         location: Location,
         title: str,
         address: str,
-        foursquare_id: str = None,
-        foursquare_type: str = None,
-        google_place_id: str = None,
-        google_place_type: str = None,
-        **_kwargs: Any,
+        foursquare_id: Optional[str] = None,
+        foursquare_type: Optional[str] = None,
+        google_place_id: Optional[str] = None,
+        google_place_type: Optional[str] = None,
+        *,
+        api_kwargs: Optional[JSONDict] = None,
     ):
+        super().__init__(api_kwargs=api_kwargs)
+
         # Required
-        self.location = location
-        self.title = title
-        self.address = address
+        self.location: Location = location
+        self.title: str = title
+        self.address: str = address
         # Optionals
-        self.foursquare_id = foursquare_id
-        self.foursquare_type = foursquare_type
-        self.google_place_id = google_place_id
-        self.google_place_type = google_place_type
+        self.foursquare_id: Optional[str] = foursquare_id
+        self.foursquare_type: Optional[str] = foursquare_type
+        self.google_place_id: Optional[str] = google_place_id
+        self.google_place_type: Optional[str] = google_place_type
 
         self._id_attrs = (self.location, self.title)
+
+        self._freeze()
 
     @classmethod
     def de_json(cls, data: Optional[JSONDict], bot: "Bot") -> Optional["Venue"]:
@@ -105,4 +112,4 @@ class Venue(TelegramObject):
 
         data["location"] = Location.de_json(data.get("location"), bot)
 
-        return cls(**data)
+        return super().de_json(data=data, bot=bot)

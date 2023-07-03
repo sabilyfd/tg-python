@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -28,11 +28,11 @@ This module contains filters for use with :class:`telegram.ext.MessageHandler`,
        :mod:`~telegram.ext.filters` module.
     #. The names of all filters has been updated:
 
-        * Filter classes which are ready for use, e.g ``Filters.all`` are now capitalized, e.g
-          ``filters.ALL``.
-        * Filters which need to be initialized are now in CamelCase. E.g. ``filters.User(...)``.
-        * Filters which do both (like ``Filters.text``) are now split as ready-to-use version
-          ``filters.TEXT`` and class version ``filters.Text(...)``.
+       * Filter classes which are ready for use, e.g ``Filters.all`` are now capitalized, e.g
+         ``filters.ALL``.
+       * Filters which need to be initialized are now in CamelCase. E.g. ``filters.User(...)``.
+       * Filters which do both (like ``Filters.text``) are now split as ready-to-use version
+         ``filters.TEXT`` and class version ``filters.Text(...)``.
 
 """
 
@@ -58,9 +58,11 @@ __all__ = (
     "FORWARDED",
     "ForwardedFrom",
     "GAME",
+    "HAS_MEDIA_SPOILER",
     "HAS_PROTECTED_CONTENT",
     "INVOICE",
     "IS_AUTOMATIC_FORWARD",
+    "IS_TOPIC_MESSAGE",
     "LOCATION",
     "Language",
     "MessageFilter",
@@ -93,6 +95,7 @@ import mimetypes
 import re
 from abc import ABC, abstractmethod
 from typing import (
+    Collection,
     Dict,
     FrozenSet,
     List,
@@ -100,6 +103,7 @@ from typing import (
     NoReturn,
     Optional,
     Pattern,
+    Sequence,
     Set,
     Tuple,
     Union,
@@ -111,8 +115,7 @@ from telegram import Message, MessageEntity, Update
 from telegram import User as TGUser
 from telegram._utils.types import SCT
 from telegram.constants import DiceEmoji as DiceEmojiEnum
-
-DataDict = Dict[str, list]
+from telegram.ext._utils.types import FilterDataDict
 
 
 class BaseFilter:
@@ -138,7 +141,7 @@ class BaseFilter:
 
     Also works with more than two filters::
 
-        filters.TEXT & (filters.Entity(URL) | filters.Entity(TEXT_LINK))
+        filters.TEXT & (filters.Entity("url") | filters.Entity("text_link"))
         filters.TEXT & (~ filters.FORWARDED)
 
     Note:
@@ -170,21 +173,28 @@ class BaseFilter:
             return a dict with lists. The dict will be merged with
             :class:`telegram.ext.CallbackContext`'s internal dict in most cases
             (depends on the handler).
-
-    Attributes:
-        name (:obj:`str`): Name for this filter.
-        data_filter (:obj:`bool`): Whether this filter is a data filter.
     """
 
     __slots__ = ("_name", "_data_filter")
 
-    def __init__(self, name: str = None, data_filter: bool = False):
+    def __init__(self, name: Optional[str] = None, data_filter: bool = False):
         self._name = self.__class__.__name__ if name is None else name
         self._data_filter = data_filter
 
-    # pylint: disable=no-self-use
-    def check_update(self, update: Update) -> Optional[Union[bool, DataDict]]:
-        """Checks if the specified update is a message."""
+    def check_update(  # skipcq: PYL-R0201
+        self, update: Update
+    ) -> Optional[Union[bool, FilterDataDict]]:
+        """Checks if the specified update should be handled by this filter.
+
+        Args:
+            update (:class:`telegram.Update`): The update to check.
+
+        Returns:
+            :obj:`bool`: :obj:`True` if the update contains one of
+            :attr:`~telegram.Update.channel_post`, :attr:`~telegram.Update.message`,
+            :attr:`~telegram.Update.edited_channel_post` or
+            :attr:`~telegram.Update.edited_message`, :obj:`False` otherwise.
+        """
         if (  # Only message updates should be handled.
             update.channel_post
             or update.message
@@ -208,6 +218,7 @@ class BaseFilter:
 
     @property
     def data_filter(self) -> bool:
+        """:obj:`bool`: Whether this filter is a data filter."""
         return self._data_filter
 
     @data_filter.setter
@@ -216,6 +227,7 @@ class BaseFilter:
 
     @property
     def name(self) -> str:
+        """:obj:`str`: Name for this filter."""
         return self._name
 
     @name.setter
@@ -232,24 +244,31 @@ class MessageFilter(BaseFilter):
 
     Please see :class:`BaseFilter` for details on how to create custom filters.
 
-    Attributes:
-        name (:obj:`str`): Name for this filter. Defaults to the type of filter.
-        data_filter (:obj:`bool`): Whether this filter is a data filter. A data filter should
-            return a dict with lists. The dict will be merged with
-            :class:`telegram.ext.CallbackContext`'s internal dict in most cases
-            (depends on the handler).
+    .. seealso:: :wiki:`Advanced Filters <Extensions---Advanced-Filters>`
 
     """
 
     __slots__ = ()
 
-    def check_update(self, update: Update) -> Optional[Union[bool, DataDict]]:
+    def check_update(self, update: Update) -> Optional[Union[bool, FilterDataDict]]:
+        """Checks if the specified update should be handled by this filter by passing
+        :attr:`~telegram.Update.effective_message` to :meth:`filter`.
+
+        Args:
+            update (:class:`telegram.Update`): The update to check.
+
+        Returns:
+            :obj:`bool` | Dict[:obj:`str`, :obj:`list`] | :obj:`None`: If the update should be
+            handled by this filter, returns :obj:`True` or a dict with lists, in case the filter
+            is a data filter. If the update should not be handled by this filter, :obj:`False` or
+            :obj:`None`.
+        """
         if super().check_update(update):
             return self.filter(update.effective_message)  # type: ignore[arg-type]
         return False
 
     @abstractmethod
-    def filter(self, message: Message) -> Optional[Union[bool, DataDict]]:
+    def filter(self, message: Message) -> Optional[Union[bool, FilterDataDict]]:
         """This method must be overwritten.
 
         Args:
@@ -269,22 +288,26 @@ class UpdateFilter(BaseFilter):
     Please see :class:`telegram.ext.filters.BaseFilter` for details on how to create custom
     filters.
 
-    Attributes:
-        name (:obj:`str`): Name for this filter. Defaults to the type of filter.
-        data_filter (:obj:`bool`): Whether this filter is a data filter. A data filter should
-            return a dict with lists. The dict will be merged with
-            :class:`telegram.ext.CallbackContext`'s internal dict in most cases
-            (depends on the handler).
-
     """
 
     __slots__ = ()
 
-    def check_update(self, update: Update) -> Optional[Union[bool, DataDict]]:
+    def check_update(self, update: Update) -> Optional[Union[bool, FilterDataDict]]:
+        """Checks if the specified update should be handled by this filter.
+
+        Args:
+            update (:class:`telegram.Update`): The update to check.
+
+        Returns:
+            :obj:`bool` | Dict[:obj:`str`, :obj:`list`] | :obj:`None`: If the update should be
+            handled by this filter, returns :obj:`True` or a dict with lists, in case the filter
+            is a data filter. If the update should not be handled by this filter, :obj:`False` or
+            :obj:`None`.
+        """
         return self.filter(update) if super().check_update(update) else False
 
     @abstractmethod
-    def filter(self, update: Update) -> Optional[Union[bool, DataDict]]:
+    def filter(self, update: Update) -> Optional[Union[bool, FilterDataDict]]:
         """This method must be overwritten.
 
         Args:
@@ -335,7 +358,10 @@ class _MergedFilter(UpdateFilter):
     __slots__ = ("base_filter", "and_filter", "or_filter")
 
     def __init__(
-        self, base_filter: BaseFilter, and_filter: BaseFilter = None, or_filter: BaseFilter = None
+        self,
+        base_filter: BaseFilter,
+        and_filter: Optional[BaseFilter] = None,
+        or_filter: Optional[BaseFilter] = None,
     ):
         super().__init__()
         self.base_filter = base_filter
@@ -353,10 +379,10 @@ class _MergedFilter(UpdateFilter):
             self.data_filter = True
 
     @staticmethod
-    def _merge(base_output: Union[bool, Dict], comp_output: Union[bool, Dict]) -> DataDict:
+    def _merge(base_output: Union[bool, Dict], comp_output: Union[bool, Dict]) -> FilterDataDict:
         base = base_output if isinstance(base_output, dict) else {}
         comp = comp_output if isinstance(comp_output, dict) else {}
-        for k in comp.keys():
+        for k in comp:
             # Make sure comp values are lists
             comp_value = comp[k] if isinstance(comp[k], list) else []
             try:
@@ -364,13 +390,13 @@ class _MergedFilter(UpdateFilter):
                 if isinstance(base[k], list):
                     base[k] += comp_value
                 else:
-                    base[k] = [base[k]] + comp_value
+                    base[k] = [base[k], *comp_value]
             except KeyError:
                 base[k] = comp_value
         return base
 
     # pylint: disable=too-many-return-statements
-    def filter(self, update: Update) -> Union[bool, DataDict]:
+    def filter(self, update: Update) -> Union[bool, FilterDataDict]:
         base_output = self.base_filter.check_update(update)
         # We need to check if the filters are data filters and if so return the merged data.
         # If it's not a data filter or an or_filter but no matches return bool
@@ -428,7 +454,7 @@ class _XORFilter(UpdateFilter):
         self.xor_filter = xor_filter
         self.merged_filter = (base_filter & ~xor_filter) | (~base_filter & xor_filter)
 
-    def filter(self, update: Update) -> Optional[Union[bool, DataDict]]:
+    def filter(self, update: Update) -> Optional[Union[bool, FilterDataDict]]:
         return self.merged_filter.check_update(update)
 
     @property
@@ -491,7 +517,7 @@ class Caption(MessageFilter):
     allow those whose caption is appearing in the given list.
 
     Examples:
-        ``MessageHandler(filters.Caption(['PTB rocks!', 'PTB'], callback_method_2)``
+        ``MessageHandler(filters.Caption(['PTB rocks!', 'PTB']), callback_method_2)``
 
     .. seealso::
         :attr:`telegram.ext.filters.CAPTION`
@@ -503,8 +529,8 @@ class Caption(MessageFilter):
 
     __slots__ = ("strings",)
 
-    def __init__(self, strings: Union[List[str], Tuple[str, ...]] = None):
-        self.strings = strings
+    def __init__(self, strings: Optional[Union[List[str], Tuple[str, ...]]] = None):
+        self.strings: Optional[Sequence[str]] = strings
         super().__init__(name=f"filters.Caption({strings})" if strings else "filters.CAPTION")
 
     def filter(self, message: Message) -> bool:
@@ -538,7 +564,7 @@ class CaptionEntity(MessageFilter):
     __slots__ = ("entity_type",)
 
     def __init__(self, entity_type: str):
-        self.entity_type = entity_type
+        self.entity_type: str = entity_type
         super().__init__(name=f"filters.CaptionEntity({self.entity_type})")
 
     def filter(self, message: Message) -> bool:
@@ -547,7 +573,8 @@ class CaptionEntity(MessageFilter):
 
 class CaptionRegex(MessageFilter):
     """
-    Filters updates by searching for an occurrence of :paramref:`pattern` in the message caption.
+    Filters updates by searching for an occurrence of :paramref:`~CaptionRegex.pattern` in the
+    message caption.
 
     This filter works similarly to :class:`Regex`, with the only exception being that
     it applies to the message caption instead of the text.
@@ -565,17 +592,15 @@ class CaptionRegex(MessageFilter):
 
     __slots__ = ("pattern",)
 
-    def __init__(self, pattern: Union[str, Pattern]):
+    def __init__(self, pattern: Union[str, Pattern[str]]):
         if isinstance(pattern, str):
             pattern = re.compile(pattern)
-        self.pattern: Pattern = pattern
+        self.pattern: Pattern[str] = pattern
         super().__init__(name=f"filters.CaptionRegex({self.pattern})", data_filter=True)
 
-    def filter(self, message: Message) -> Optional[Dict[str, List[Match]]]:
-        if message.caption:
-            match = self.pattern.search(message.caption)
-            if match:
-                return {"matches": [match]}
+    def filter(self, message: Message) -> Optional[Dict[str, List[Match[str]]]]:
+        if message.caption and (match := self.pattern.search(message.caption)):
+            return {"matches": [match]}
         return {}
 
 
@@ -590,14 +615,14 @@ class _ChatUserBaseFilter(MessageFilter, ABC):
 
     def __init__(
         self,
-        chat_id: SCT[int] = None,
-        username: SCT[str] = None,
+        chat_id: Optional[SCT[int]] = None,
+        username: Optional[SCT[str]] = None,
         allow_empty: bool = False,
     ):
         super().__init__()
-        self._chat_id_name = "chat_id"
-        self._username_name = "username"
-        self.allow_empty = allow_empty
+        self._chat_id_name: str = "chat_id"
+        self._username_name: str = "username"
+        self.allow_empty: bool = allow_empty
 
         self._chat_ids: Set[int] = set()
         self._usernames: Set[str] = set()
@@ -606,7 +631,7 @@ class _ChatUserBaseFilter(MessageFilter, ABC):
         self._set_usernames(username)
 
     @abstractmethod
-    def get_chat_or_user(self, message: Message) -> Union[TGChat, TGUser, None]:
+    def _get_chat_or_user(self, message: Message) -> Union[TGChat, TGUser, None]:
         ...
 
     @staticmethod
@@ -724,7 +749,7 @@ class _ChatUserBaseFilter(MessageFilter, ABC):
         self._chat_ids -= parsed_chat_id
 
     def filter(self, message: Message) -> bool:
-        chat_or_user = self.get_chat_or_user(message)
+        chat_or_user = self._get_chat_or_user(message)
         if chat_or_user:
             if self.chat_ids:
                 return chat_or_user.id in self.chat_ids
@@ -778,7 +803,7 @@ class Chat(_ChatUserBaseFilter):
 
     __slots__ = ()
 
-    def get_chat_or_user(self, message: Message) -> Optional[TGChat]:
+    def _get_chat_or_user(self, message: Message) -> Optional[TGChat]:
         return message.chat
 
     def add_chat_ids(self, chat_id: SCT[int]) -> None:
@@ -895,7 +920,7 @@ class Command(MessageFilter):
     __slots__ = ("only_start",)
 
     def __init__(self, only_start: bool = True):
-        self.only_start = only_start
+        self.only_start: bool = only_start
         super().__init__(f"filters.Command({only_start})" if not only_start else "filters.COMMAND")
 
     def filter(self, message: Message) -> bool:
@@ -932,10 +957,10 @@ CONTACT = _Contact(name="filters.CONTACT")
 class _Dice(MessageFilter):
     __slots__ = ("emoji", "values")
 
-    def __init__(self, values: SCT[int] = None, emoji: DiceEmojiEnum = None):
+    def __init__(self, values: Optional[SCT[int]] = None, emoji: Optional[DiceEmojiEnum] = None):
         super().__init__()
-        self.emoji = emoji
-        self.values = [values] if isinstance(values, int) else values
+        self.emoji: Optional[DiceEmojiEnum] = emoji
+        self.values: Optional[Collection[int]] = [values] if isinstance(values, int) else values
 
         if emoji:  # for filters.Dice.BASKETBALL
             self.name = f"filters.Dice.{emoji.name}"
@@ -947,15 +972,15 @@ class _Dice(MessageFilter):
             self.name = "filters.Dice.ALL"
 
     def filter(self, message: Message) -> bool:
-        if not message.dice:  # no dice
+        if not (dice := message.dice):  # no dice
             return False
 
         if self.emoji:
-            emoji_match = message.dice.emoji == self.emoji
+            emoji_match = dice.emoji == self.emoji
             if self.values:
-                return message.dice.value in self.values and emoji_match  # emoji and value
+                return dice.value in self.values and emoji_match  # emoji and value
             return emoji_match  # emoji, no value
-        return message.dice.value in self.values if self.values else True  # no emoji, only value
+        return dice.value in self.values if self.values else True  # no emoji, only value
 
 
 class Dice(_Dice):
@@ -1182,7 +1207,7 @@ class Document:
 
         def __init__(self, file_extension: Optional[str], case_sensitive: bool = False):
             super().__init__()
-            self.is_case_sensitive = case_sensitive
+            self.is_case_sensitive: bool = case_sensitive
             if file_extension is None:
                 self._file_extension = None
                 self.name = "filters.Document.FileExtension(None)"
@@ -1224,7 +1249,7 @@ class Document:
         __slots__ = ("mimetype",)
 
         def __init__(self, mimetype: str):
-            self.mimetype = mimetype  # skipcq: PTC-W0052
+            self.mimetype: str = mimetype  # skipcq: PTC-W0052
             super().__init__(name=f"filters.Document.MimeType('{self.mimetype}')")
 
         def filter(self, message: Message) -> bool:
@@ -1283,7 +1308,7 @@ class Entity(MessageFilter):
     __slots__ = ("entity_type",)
 
     def __init__(self, entity_type: str):
-        self.entity_type = entity_type
+        self.entity_type: str = entity_type
         super().__init__(name=f"filters.Entity({self.entity_type})")
 
     def filter(self, message: Message) -> bool:
@@ -1345,7 +1370,7 @@ class ForwardedFrom(_ChatUserBaseFilter):
 
     __slots__ = ()
 
-    def get_chat_or_user(self, message: Message) -> Union[TGUser, TGChat, None]:
+    def _get_chat_or_user(self, message: Message) -> Union[TGUser, TGChat, None]:
         return message.forward_from or message.forward_from_chat
 
     def add_chat_ids(self, chat_id: SCT[int]) -> None:
@@ -1378,6 +1403,20 @@ class _Game(MessageFilter):
 
 GAME = _Game(name="filters.GAME")
 """Messages that contain :attr:`telegram.Message.game`."""
+
+
+class _HasMediaSpoiler(MessageFilter):
+    __slots__ = ()
+
+    def filter(self, message: Message) -> bool:
+        return bool(message.has_media_spoiler)
+
+
+HAS_MEDIA_SPOILER = _HasMediaSpoiler(name="filters.HAS_MEDIA_SPOILER")
+"""Messages that contain :attr:`telegram.Message.has_media_spoiler`.
+
+    .. versionadded:: 20.0
+"""
 
 
 class _HasProtectedContent(MessageFilter):
@@ -1419,6 +1458,20 @@ IS_AUTOMATIC_FORWARD = _IsAutomaticForward(name="filters.IS_AUTOMATIC_FORWARD")
 """
 
 
+class _IsTopicMessage(MessageFilter):
+    __slots__ = ()
+
+    def filter(self, message: Message) -> bool:
+        return bool(message.is_topic_message)
+
+
+IS_TOPIC_MESSAGE = _IsTopicMessage(name="filters.IS_TOPIC_MESSAGE")
+"""Messages that contain :attr:`telegram.Message.is_topic_message`.
+
+    .. versionadded:: 20.0
+"""
+
+
 class Language(MessageFilter):
     """Filters messages to only allow those which are from users with a certain language code.
 
@@ -1442,7 +1495,7 @@ class Language(MessageFilter):
     def __init__(self, lang: SCT[str]):
         if isinstance(lang, str):
             lang = cast(str, lang)
-            self.lang = [lang]
+            self.lang: Sequence[str] = [lang]
         else:
             lang = cast(List[str], lang)
             self.lang = lang
@@ -1502,7 +1555,8 @@ POLL = _Poll(name="filters.POLL")
 
 class Regex(MessageFilter):
     """
-    Filters updates by searching for an occurrence of :paramref:`pattern` in the message text.
+    Filters updates by searching for an occurrence of :paramref:`~Regex.pattern` in the message
+    text.
     The :func:`re.search` function is used to determine whether an update should be filtered.
 
     Refer to the documentation of the :obj:`re` module for more information.
@@ -1526,23 +1580,23 @@ class Regex(MessageFilter):
         With a :attr:`telegram.Message.text` of `x`, will only ever return the matches for the
         first filter, since the second one is never evaluated.
 
+    .. seealso:: :wiki:`Types of Handlers <Types-of-Handlers>`
+
     Args:
         pattern (:obj:`str` | :func:`re.Pattern <re.compile>`): The regex pattern.
     """
 
     __slots__ = ("pattern",)
 
-    def __init__(self, pattern: Union[str, Pattern]):
+    def __init__(self, pattern: Union[str, Pattern[str]]):
         if isinstance(pattern, str):
             pattern = re.compile(pattern)
-        self.pattern: Pattern = pattern
+        self.pattern: Pattern[str] = pattern
         super().__init__(name=f"filters.Regex({self.pattern})", data_filter=True)
 
-    def filter(self, message: Message) -> Optional[Dict[str, List[Match]]]:
-        if message.text:
-            match = self.pattern.search(message.text)
-            if match:
-                return {"matches": [match]}
+    def filter(self, message: Message) -> Optional[Dict[str, List[Match[str]]]]:
+        if message.text and (match := self.pattern.search(message.text)):
+            return {"matches": [match]}
         return {}
 
 
@@ -1650,7 +1704,7 @@ class SenderChat(_ChatUserBaseFilter):
         """
         return super()._add_chat_ids(chat_id)
 
-    def get_chat_or_user(self, message: Message) -> Optional[TGChat]:
+    def _get_chat_or_user(self, message: Message) -> Optional[TGChat]:
         return message.sender_chat
 
     def remove_chat_ids(self, chat_id: SCT[int]) -> None:
@@ -1698,6 +1752,15 @@ class StatusUpdate:
                 or StatusUpdate.VIDEO_CHAT_ENDED.check_update(update)
                 or StatusUpdate.VIDEO_CHAT_PARTICIPANTS_INVITED.check_update(update)
                 or StatusUpdate.WEB_APP_DATA.check_update(update)
+                or StatusUpdate.FORUM_TOPIC_CREATED.check_update(update)
+                or StatusUpdate.FORUM_TOPIC_CLOSED.check_update(update)
+                or StatusUpdate.FORUM_TOPIC_REOPENED.check_update(update)
+                or StatusUpdate.FORUM_TOPIC_EDITED.check_update(update)
+                or StatusUpdate.GENERAL_FORUM_TOPIC_HIDDEN.check_update(update)
+                or StatusUpdate.GENERAL_FORUM_TOPIC_UNHIDDEN.check_update(update)
+                or StatusUpdate.WRITE_ACCESS_ALLOWED.check_update(update)
+                or StatusUpdate.USER_SHARED.check_update(update)
+                or StatusUpdate.CHAT_SHARED.check_update(update)
             )
 
     ALL = _All(name="filters.StatusUpdate.ALL")
@@ -1718,6 +1781,18 @@ class StatusUpdate:
         :attr:`telegram.Message.supergroup_chat_created` or
         :attr:`telegram.Message.channel_chat_created`."""
 
+    class _ChatShared(MessageFilter):
+        __slots__ = ()
+
+        def filter(self, message: Message) -> bool:
+            return bool(message.chat_shared)
+
+    CHAT_SHARED = _ChatShared(name="filters.StatusUpdate.CHAT_SHARED")
+    """Messages that contain :attr:`telegram.Message.chat_shared`.
+
+    .. versionadded:: 20.1
+    """
+
     class _ConnectedWebsite(MessageFilter):
         __slots__ = ()
 
@@ -1735,6 +1810,82 @@ class StatusUpdate:
 
     DELETE_CHAT_PHOTO = _DeleteChatPhoto(name="filters.StatusUpdate.DELETE_CHAT_PHOTO")
     """Messages that contain :attr:`telegram.Message.delete_chat_photo`."""
+
+    class _ForumTopicClosed(MessageFilter):
+        __slots__ = ()
+
+        def filter(self, message: Message) -> bool:
+            return bool(message.forum_topic_closed)
+
+    FORUM_TOPIC_CLOSED = _ForumTopicClosed(name="filters.StatusUpdate.FORUM_TOPIC_CLOSED")
+    """Messages that contain :attr:`telegram.Message.forum_topic_closed`.
+
+    .. versionadded:: 20.0
+    """
+
+    class _ForumTopicCreated(MessageFilter):
+        __slots__ = ()
+
+        def filter(self, message: Message) -> bool:
+            return bool(message.forum_topic_created)
+
+    FORUM_TOPIC_CREATED = _ForumTopicCreated(name="filters.StatusUpdate.FORUM_TOPIC_CREATED")
+    """Messages that contain :attr:`telegram.Message.forum_topic_created`.
+
+    .. versionadded:: 20.0
+    """
+
+    class _ForumTopicEdited(MessageFilter):
+        __slots__ = ()
+
+        def filter(self, message: Message) -> bool:
+            return bool(message.forum_topic_edited)
+
+    FORUM_TOPIC_EDITED = _ForumTopicEdited(name="filters.StatusUpdate.FORUM_TOPIC_EDITED")
+    """Messages that contain :attr:`telegram.Message.forum_topic_edited`.
+
+    .. versionadded:: 20.0
+    """
+
+    class _ForumTopicReopened(MessageFilter):
+        __slots__ = ()
+
+        def filter(self, message: Message) -> bool:
+            return bool(message.forum_topic_reopened)
+
+    FORUM_TOPIC_REOPENED = _ForumTopicReopened(name="filters.StatusUpdate.FORUM_TOPIC_REOPENED")
+    """Messages that contain :attr:`telegram.Message.forum_topic_reopened`.
+
+    .. versionadded:: 20.0
+    """
+
+    class _GeneralForumTopicHidden(MessageFilter):
+        __slots__ = ()
+
+        def filter(self, message: Message) -> bool:
+            return bool(message.general_forum_topic_hidden)
+
+    GENERAL_FORUM_TOPIC_HIDDEN = _GeneralForumTopicHidden(
+        name="filters.StatusUpdate.GENERAL_FORUM_TOPIC_HIDDEN"
+    )
+    """Messages that contain :attr:`telegram.Message.general_forum_topic_hidden`.
+
+    .. versionadded:: 20.0
+    """
+
+    class _GeneralForumTopicUnhidden(MessageFilter):
+        __slots__ = ()
+
+        def filter(self, message: Message) -> bool:
+            return bool(message.general_forum_topic_unhidden)
+
+    GENERAL_FORUM_TOPIC_UNHIDDEN = _GeneralForumTopicUnhidden(
+        name="filters.StatusUpdate.GENERAL_FORUM_TOPIC_UNHIDDEN"
+    )
+    """Messages that contain :attr:`telegram.Message.general_forum_topic_unhidden`.
+
+    .. versionadded:: 20.0
+    """
 
     class _LeftChatMember(MessageFilter):
         __slots__ = ()
@@ -1816,6 +1967,18 @@ class StatusUpdate:
     )
     """Messages that contain :attr:`telegram.Message.proximity_alert_triggered`."""
 
+    class _UserShared(MessageFilter):
+        __slots__ = ()
+
+        def filter(self, message: Message) -> bool:
+            return bool(message.user_shared)
+
+    USER_SHARED = _UserShared(name="filters.StatusUpdate.USER_SHARED")
+    """Messages that contain :attr:`telegram.Message.user_shared`.
+
+    .. versionadded:: 20.1
+    """
+
     class _VideoChatEnded(MessageFilter):
         __slots__ = ()
 
@@ -1882,6 +2045,18 @@ class StatusUpdate:
 
     WEB_APP_DATA = _WebAppData(name="filters.StatusUpdate.WEB_APP_DATA")
     """Messages that contain :attr:`telegram.Message.web_app_data`.
+
+    .. versionadded:: 20.0
+    """
+
+    class _WriteAccessAllowed(MessageFilter):
+        __slots__ = ()
+
+        def filter(self, message: Message) -> bool:
+            return bool(message.write_access_allowed)
+
+    WRITE_ACCESS_ALLOWED = _WriteAccessAllowed(name="filters.StatusUpdate.WRITE_ACCESS_ALLOWED")
+    """Messages that contain :attr:`telegram.Message.write_access_allowed`.
 
     .. versionadded:: 20.0
     """
@@ -2010,8 +2185,8 @@ class Text(MessageFilter):
 
     __slots__ = ("strings",)
 
-    def __init__(self, strings: Union[List[str], Tuple[str, ...]] = None):
-        self.strings = strings
+    def __init__(self, strings: Optional[Union[List[str], Tuple[str, ...]]] = None):
+        self.strings: Optional[Sequence[str]] = strings
         super().__init__(name=f"filters.Text({strings})" if strings else "filters.TEXT")
 
     def filter(self, message: Message) -> bool:
@@ -2140,14 +2315,14 @@ class User(_ChatUserBaseFilter):
 
     def __init__(
         self,
-        user_id: SCT[int] = None,
-        username: SCT[str] = None,
+        user_id: Optional[SCT[int]] = None,
+        username: Optional[SCT[str]] = None,
         allow_empty: bool = False,
     ):
         super().__init__(chat_id=user_id, username=username, allow_empty=allow_empty)
         self._chat_id_name = "user_id"
 
-    def get_chat_or_user(self, message: Message) -> Optional[TGUser]:
+    def _get_chat_or_user(self, message: Message) -> Optional[TGUser]:
         return message.from_user
 
     @property
@@ -2276,14 +2451,14 @@ class ViaBot(_ChatUserBaseFilter):
 
     def __init__(
         self,
-        bot_id: SCT[int] = None,
-        username: SCT[str] = None,
+        bot_id: Optional[SCT[int]] = None,
+        username: Optional[SCT[str]] = None,
         allow_empty: bool = False,
     ):
         super().__init__(chat_id=bot_id, username=username, allow_empty=allow_empty)
         self._chat_id_name = "bot_id"
 
-    def get_chat_or_user(self, message: Message) -> Optional[TGUser]:
+    def _get_chat_or_user(self, message: Message) -> Optional[TGUser]:
         return message.via_bot
 
     @property

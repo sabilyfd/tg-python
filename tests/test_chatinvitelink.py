@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -21,33 +21,33 @@ import datetime
 import pytest
 
 from telegram import ChatInviteLink, User
-from telegram._utils.datetime import to_timestamp
+from telegram._utils.datetime import UTC, to_timestamp
+from tests.auxil.slots import mro_slots
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def creator():
     return User(1, "First name", False)
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def invite_link(creator):
     return ChatInviteLink(
-        TestChatInviteLink.link,
+        TestChatInviteLinkBase.link,
         creator,
-        TestChatInviteLink.creates_join_request,
-        TestChatInviteLink.primary,
-        TestChatInviteLink.revoked,
-        expire_date=TestChatInviteLink.expire_date,
-        member_limit=TestChatInviteLink.member_limit,
-        name=TestChatInviteLink.name,
-        pending_join_request_count=TestChatInviteLink.pending_join_request_count,
+        TestChatInviteLinkBase.creates_join_request,
+        TestChatInviteLinkBase.primary,
+        TestChatInviteLinkBase.revoked,
+        expire_date=TestChatInviteLinkBase.expire_date,
+        member_limit=TestChatInviteLinkBase.member_limit,
+        name=TestChatInviteLinkBase.name,
+        pending_join_request_count=TestChatInviteLinkBase.pending_join_request_count,
     )
 
 
-class TestChatInviteLink:
-
+class TestChatInviteLinkBase:
     link = "thisialink"
-    creates_join_request = (False,)
+    creates_join_request = False
     primary = True
     revoked = False
     expire_date = datetime.datetime.now(datetime.timezone.utc)
@@ -55,7 +55,9 @@ class TestChatInviteLink:
     name = "LinkName"
     pending_join_request_count = 42
 
-    def test_slot_behaviour(self, mro_slots, invite_link):
+
+class TestChatInviteLinkWithoutRequest(TestChatInviteLinkBase):
+    def test_slot_behaviour(self, invite_link):
         for attr in invite_link.__slots__:
             assert getattr(invite_link, attr, "err") != "err", f"got extra slot '{attr}'"
         assert len(mro_slots(invite_link)) == len(set(mro_slots(invite_link))), "duplicate slot"
@@ -70,6 +72,7 @@ class TestChatInviteLink:
         }
 
         invite_link = ChatInviteLink.de_json(json_dict, bot)
+        assert invite_link.api_kwargs == {}
 
         assert invite_link.invite_link == self.link
         assert invite_link.creator == creator
@@ -91,6 +94,7 @@ class TestChatInviteLink:
         }
 
         invite_link = ChatInviteLink.de_json(json_dict, bot)
+        assert invite_link.api_kwargs == {}
 
         assert invite_link.invite_link == self.link
         assert invite_link.creator == creator
@@ -102,6 +106,33 @@ class TestChatInviteLink:
         assert invite_link.member_limit == self.member_limit
         assert invite_link.name == self.name
         assert invite_link.pending_join_request_count == self.pending_join_request_count
+
+    def test_de_json_localization(self, tz_bot, bot, raw_bot, creator):
+        json_dict = {
+            "invite_link": self.link,
+            "creator": creator.to_dict(),
+            "creates_join_request": self.creates_join_request,
+            "is_primary": self.primary,
+            "is_revoked": self.revoked,
+            "expire_date": to_timestamp(self.expire_date),
+            "member_limit": self.member_limit,
+            "name": self.name,
+            "pending_join_request_count": str(self.pending_join_request_count),
+        }
+
+        invite_link_raw = ChatInviteLink.de_json(json_dict, raw_bot)
+        invite_link_bot = ChatInviteLink.de_json(json_dict, bot)
+        invite_link_tz = ChatInviteLink.de_json(json_dict, tz_bot)
+
+        # comparing utcoffsets because comparing timezones is unpredicatable
+        invite_offset = invite_link_tz.expire_date.utcoffset()
+        tz_bot_offset = tz_bot.defaults.tzinfo.utcoffset(
+            invite_link_tz.expire_date.replace(tzinfo=None)
+        )
+
+        assert invite_link_raw.expire_date.tzinfo == UTC
+        assert invite_link_bot.expire_date.tzinfo == UTC
+        assert invite_offset == tz_bot_offset
 
     def test_to_dict(self, invite_link):
         invite_link_dict = invite_link.to_dict()

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -18,12 +18,12 @@
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 """This module contains the ChosenInlineResultHandler class."""
 import re
-from typing import TYPE_CHECKING, Match, Optional, Pattern, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, Match, Optional, Pattern, TypeVar, Union, cast
 
 from telegram import Update
 from telegram._utils.defaultvalue import DEFAULT_TRUE
-from telegram._utils.types import DVInput
-from telegram.ext._handler import BaseHandler
+from telegram._utils.types import DVType
+from telegram.ext._basehandler import BaseHandler
 from telegram.ext._utils.types import CCT, HandlerCallback
 
 RT = TypeVar("RT")
@@ -52,6 +52,8 @@ class ChosenInlineResultHandler(BaseHandler[Update, CCT]):
         block (:obj:`bool`, optional): Determines whether the return value of the callback should
             be awaited before processing the next handler in
             :meth:`telegram.ext.Application.process_update`. Defaults to :obj:`True`.
+
+            .. seealso:: :wiki:`Concurrency`
         pattern (:obj:`str` | :func:`re.Pattern <re.compile>`, optional): Regex pattern. If not
             :obj:`None`, :func:`re.match`
             is used on :attr:`telegram.ChosenInlineResult.result_id` to determine if an update
@@ -59,7 +61,6 @@ class ChosenInlineResultHandler(BaseHandler[Update, CCT]):
             :attr:`telegram.ext.CallbackContext.matches`.
 
             .. versionadded:: 13.6
-
     Attributes:
         callback (:term:`coroutine function`): The callback function for this handler.
         block (:obj:`bool`): Determines whether the return value of the callback should be
@@ -77,15 +78,15 @@ class ChosenInlineResultHandler(BaseHandler[Update, CCT]):
     def __init__(
         self,
         callback: HandlerCallback[Update, CCT, RT],
-        block: DVInput[bool] = DEFAULT_TRUE,
-        pattern: Union[str, Pattern] = None,
+        block: DVType[bool] = DEFAULT_TRUE,
+        pattern: Optional[Union[str, Pattern[str]]] = None,
     ):
         super().__init__(callback, block=block)
 
         if isinstance(pattern, str):
             pattern = re.compile(pattern)
 
-        self.pattern = pattern
+        self.pattern: Optional[Union[str, Pattern[str]]] = pattern
 
     def check_update(self, update: object) -> Optional[Union[bool, object]]:
         """Determines whether an update should be passed to this handler's :attr:`callback`.
@@ -99,8 +100,7 @@ class ChosenInlineResultHandler(BaseHandler[Update, CCT]):
         """
         if isinstance(update, Update) and update.chosen_inline_result:
             if self.pattern:
-                match = re.match(self.pattern, update.chosen_inline_result.result_id)
-                if match:
+                if match := re.match(self.pattern, update.chosen_inline_result.result_id):
                     return match
             else:
                 return True
@@ -109,9 +109,9 @@ class ChosenInlineResultHandler(BaseHandler[Update, CCT]):
     def collect_additional_context(
         self,
         context: CCT,
-        update: Update,
-        application: "Application",
-        check_result: Union[bool, Match],
+        update: Update,  # skipcq: BAN-B301
+        application: "Application[Any, CCT, Any, Any, Any, Any]",  # skipcq: BAN-B301
+        check_result: Union[bool, Match[str]],
     ) -> None:
         """This function adds the matched regex pattern result to
         :attr:`telegram.ext.CallbackContext.matches`.

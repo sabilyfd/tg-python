@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 
 
 from telegram import Update
-from telegram.ext._handler import BaseHandler
+from telegram.ext._basehandler import BaseHandler
 from telegram.ext._utils.types import CCT
 
 
@@ -31,7 +31,8 @@ class PreCheckoutQueryHandler(BaseHandler[Update, CCT]):
         When setting :paramref:`block` to :obj:`False`, you cannot rely on adding custom
         attributes to :class:`telegram.ext.CallbackContext`. See its docs for more info.
 
-    .. seealso:: `Paymentbot Example <examples.paymentbot.html>`_
+    Examples:
+        :any:`Payment Bot <examples.paymentbot>`
 
     Args:
         callback (:term:`coroutine function`): The callback function for this handler. Will be
@@ -45,6 +46,8 @@ class PreCheckoutQueryHandler(BaseHandler[Update, CCT]):
         block (:obj:`bool`, optional): Determines whether the return value of the callback should
             be awaited before processing the next handler in
             :meth:`telegram.ext.Application.process_update`. Defaults to :obj:`True`.
+
+            .. seealso:: :wiki:`Concurrency`
 
     Attributes:
         callback (:term:`coroutine function`): The callback function for this handler.

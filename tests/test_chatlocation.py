@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -20,18 +20,21 @@
 import pytest
 
 from telegram import ChatLocation, Location, User
+from tests.auxil.slots import mro_slots
 
 
-@pytest.fixture(scope="class")
-def chat_location(bot):
-    return ChatLocation(TestChatLocation.location, TestChatLocation.address)
+@pytest.fixture(scope="module")
+def chat_location():
+    return ChatLocation(TestChatLocationBase.location, TestChatLocationBase.address)
 
 
-class TestChatLocation:
+class TestChatLocationBase:
     location = Location(123, 456)
     address = "The Shire"
 
-    def test_slot_behaviour(self, chat_location, mro_slots):
+
+class TestChatLocationWithoutRequest(TestChatLocationBase):
+    def test_slot_behaviour(self, chat_location):
         inst = chat_location
         for attr in inst.__slots__:
             assert getattr(inst, attr, "err") != "err", f"got extra slot '{attr}'"
@@ -43,6 +46,7 @@ class TestChatLocation:
             "address": self.address,
         }
         chat_location = ChatLocation.de_json(json_dict, bot)
+        assert chat_location.api_kwargs == {}
 
         assert chat_location.location == self.location
         assert chat_location.address == self.address

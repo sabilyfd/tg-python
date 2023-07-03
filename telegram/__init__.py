@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -37,6 +37,9 @@ __all__ = (  # Keep this alphabetically ordered
     "BotCommandScopeChatAdministrators",
     "BotCommandScopeChatMember",
     "BotCommandScopeDefault",
+    "BotDescription",
+    "BotName",
+    "BotShortDescription",
     "CallbackGame",
     "CallbackQuery",
     "Chat",
@@ -54,6 +57,7 @@ __all__ = (  # Keep this alphabetically ordered
     "ChatMemberUpdated",
     "ChatPermissions",
     "ChatPhoto",
+    "ChatShared",
     "ChosenInlineResult",
     "constants",
     "Contact",
@@ -67,8 +71,15 @@ __all__ = (  # Keep this alphabetically ordered
     "File",
     "FileCredentials",
     "ForceReply",
+    "ForumTopic",
+    "ForumTopicClosed",
+    "ForumTopicCreated",
+    "ForumTopicEdited",
+    "ForumTopicReopened",
     "Game",
     "GameHighScore",
+    "GeneralForumTopicHidden",
+    "GeneralForumTopicUnhidden",
     "helpers",
     "IdDocumentData",
     "InlineKeyboardButton",
@@ -92,6 +103,7 @@ __all__ = (  # Keep this alphabetically ordered
     "InlineQueryResultLocation",
     "InlineQueryResultMpeg4Gif",
     "InlineQueryResultPhoto",
+    "InlineQueryResultsButton",
     "InlineQueryResultVenue",
     "InlineQueryResultVideo",
     "InlineQueryResultVoice",
@@ -106,11 +118,14 @@ __all__ = (  # Keep this alphabetically ordered
     "InputMediaPhoto",
     "InputMediaVideo",
     "InputMessageContent",
+    "InputSticker",
     "InputTextMessageContent",
     "InputVenueMessageContent",
     "Invoice",
     "KeyboardButton",
     "KeyboardButtonPollType",
+    "KeyboardButtonRequestChat",
+    "KeyboardButtonRequestUser",
     "LabeledPrice",
     "Location",
     "LoginUrl",
@@ -156,10 +171,12 @@ __all__ = (  # Keep this alphabetically ordered
     "Sticker",
     "StickerSet",
     "SuccessfulPayment",
+    "SwitchInlineQueryChosenChat",
     "TelegramObject",
     "Update",
     "User",
     "UserProfilePhotos",
+    "UserShared",
     "Venue",
     "Video",
     "VideoChatEnded",
@@ -172,10 +189,11 @@ __all__ = (  # Keep this alphabetically ordered
     "WebAppData",
     "WebAppInfo",
     "WebhookInfo",
+    "WriteAccessAllowed",
 )
 
 
-from . import _version
+from . import _version, constants, error, helpers, request, warnings
 from ._bot import Bot
 from ._botcommand import BotCommand
 from ._botcommandscope import (
@@ -188,6 +206,8 @@ from ._botcommandscope import (
     BotCommandScopeChatMember,
     BotCommandScopeDefault,
 )
+from ._botdescription import BotDescription, BotShortDescription
+from ._botname import BotName
 from ._callbackquery import CallbackQuery
 from ._chat import Chat
 from ._chatadministratorrights import ChatAdministratorRights
@@ -222,6 +242,7 @@ from ._files.inputmedia import (
     InputMediaPhoto,
     InputMediaVideo,
 )
+from ._files.inputsticker import InputSticker
 from ._files.location import Location
 from ._files.photosize import PhotoSize
 from ._files.sticker import MaskPosition, Sticker, StickerSet
@@ -230,6 +251,15 @@ from ._files.video import Video
 from ._files.videonote import VideoNote
 from ._files.voice import Voice
 from ._forcereply import ForceReply
+from ._forumtopic import (
+    ForumTopic,
+    ForumTopicClosed,
+    ForumTopicCreated,
+    ForumTopicEdited,
+    ForumTopicReopened,
+    GeneralForumTopicHidden,
+    GeneralForumTopicUnhidden,
+)
 from ._games.callbackgame import CallbackGame
 from ._games.game import Game
 from ._games.gamehighscore import GameHighScore
@@ -254,6 +284,7 @@ from ._inline.inlinequeryresultgif import InlineQueryResultGif
 from ._inline.inlinequeryresultlocation import InlineQueryResultLocation
 from ._inline.inlinequeryresultmpeg4gif import InlineQueryResultMpeg4Gif
 from ._inline.inlinequeryresultphoto import InlineQueryResultPhoto
+from ._inline.inlinequeryresultsbutton import InlineQueryResultsButton
 from ._inline.inlinequeryresultvenue import InlineQueryResultVenue
 from ._inline.inlinequeryresultvideo import InlineQueryResultVideo
 from ._inline.inlinequeryresultvoice import InlineQueryResultVoice
@@ -265,6 +296,7 @@ from ._inline.inputtextmessagecontent import InputTextMessageContent
 from ._inline.inputvenuemessagecontent import InputVenueMessageContent
 from ._keyboardbutton import KeyboardButton
 from ._keyboardbuttonpolltype import KeyboardButtonPollType
+from ._keyboardbuttonrequest import KeyboardButtonRequestChat, KeyboardButtonRequestUser
 from ._loginurl import LoginUrl
 from ._menubutton import MenuButton, MenuButtonCommands, MenuButtonDefault, MenuButtonWebApp
 from ._message import Message
@@ -308,34 +340,12 @@ from ._proximityalerttriggered import ProximityAlertTriggered
 from ._replykeyboardmarkup import ReplyKeyboardMarkup
 from ._replykeyboardremove import ReplyKeyboardRemove
 from ._sentwebappmessage import SentWebAppMessage
+from ._shared import ChatShared, UserShared
+from ._switchinlinequerychosenchat import SwitchInlineQueryChosenChat
 from ._telegramobject import TelegramObject
 from ._update import Update
 from ._user import User
 from ._userprofilephotos import UserProfilePhotos
-
-#: :obj:`str`: The version of the `python-telegram-bot` library as string.
-#: To get detailed information about the version number, please use :data:`__version_info__`
-#: instead.
-__version__ = _version.__version__
-#:  :class:`typing.NamedTuple`: A tuple containing the five components of the version number:
-#:  `major`, `minor`, `micro`, `releaselevel`, and `serial`.
-#:  All values except `releaselevel` are integers.
-#:  The release level is ``'alpha'``, ``'beta'``, ``'candidate'``, or ``'final'``.
-#:  The components can also be accessed by name, so ``__version_info__[0]`` is equivalent to
-#:  ``__version_info__.major`` and so on.
-#:
-#:  .. versionadded:: 20.0
-__version_info__ = _version.__version_info__
-#: :obj:`str`: Shortcut for :const:`telegram.constants.BOT_API_VERSION`.
-#:
-#: .. versionchanged:: 20.0
-#:    This constant was previously named ``bot_api_version``.
-__bot_api_version__ = _version.__bot_api_version__
-#: :class:`typing.NamedTuple`: Shortcut for :const:`telegram.constants.BOT_API_VERSION_INFO`.
-#:
-#: .. versionadded:: 20.0
-__bot_api_version_info__ = _version.__bot_api_version_info__
-
 from ._videochat import (
     VideoChatEnded,
     VideoChatParticipantsInvited,
@@ -345,3 +355,27 @@ from ._videochat import (
 from ._webappdata import WebAppData
 from ._webappinfo import WebAppInfo
 from ._webhookinfo import WebhookInfo
+from ._writeaccessallowed import WriteAccessAllowed
+
+#: :obj:`str`: The version of the `python-telegram-bot` library as string.
+#: To get detailed information about the version number, please use :data:`__version_info__`
+#: instead.
+__version__: str = _version.__version__
+#:  :class:`typing.NamedTuple`: A tuple containing the five components of the version number:
+#:  `major`, `minor`, `micro`, `releaselevel`, and `serial`.
+#:  All values except `releaselevel` are integers.
+#:  The release level is ``'alpha'``, ``'beta'``, ``'candidate'``, or ``'final'``.
+#:  The components can also be accessed by name, so ``__version_info__[0]`` is equivalent to
+#:  ``__version_info__.major`` and so on.
+#:
+#:  .. versionadded:: 20.0
+__version_info__: _version.Version = _version.__version_info__
+#: :obj:`str`: Shortcut for :const:`telegram.constants.BOT_API_VERSION`.
+#:
+#: .. versionchanged:: 20.0
+#:    This constant was previously named ``bot_api_version``.
+__bot_api_version__: str = _version.__bot_api_version__
+#: :class:`typing.NamedTuple`: Shortcut for :const:`telegram.constants.BOT_API_VERSION_INFO`.
+#:
+#: .. versionadded:: 20.0
+__bot_api_version_info__: constants._BotAPIVersion = _version.__bot_api_version_info__

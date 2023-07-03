@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -18,14 +18,14 @@
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 """This module contains an abstract class to make POST and GET requests."""
 import abc
-import asyncio
 import json
-from contextlib import AbstractAsyncContextManager
 from http import HTTPStatus
 from types import TracebackType
-from typing import ClassVar, Optional, Tuple, Type, TypeVar, Union
+from typing import AsyncContextManager, Final, List, Optional, Tuple, Type, TypeVar, Union, final
 
 from telegram._utils.defaultvalue import DEFAULT_NONE as _DEFAULT_NONE
+from telegram._utils.defaultvalue import DefaultValue
+from telegram._utils.logging import get_logger
 from telegram._utils.types import JSONDict, ODVInput
 from telegram._version import __version__ as ptb_ver
 from telegram.error import (
@@ -42,9 +42,11 @@ from telegram.request._requestdata import RequestData
 
 RT = TypeVar("RT", bound="BaseRequest")
 
+_LOGGER = get_logger(__name__, class_name="BaseRequest")
+
 
 class BaseRequest(
-    AbstractAsyncContextManager,
+    AsyncContextManager["BaseRequest"],
     abc.ABC,
 ):
     """Abstract interface class that allows python-telegram-bot to make requests to the Bot API.
@@ -73,15 +75,18 @@ class BaseRequest(
         To use a custom library for this, you can override :meth:`parse_json_payload` and implement
         custom logic to encode the keys of :attr:`telegram.request.RequestData.parameters`.
 
+    .. seealso:: :wiki:`Architecture Overview <Architecture>`,
+        :wiki:`Builder Pattern <Builder-Pattern>`
+
     .. versionadded:: 20.0
     """
 
     __slots__ = ()
 
-    USER_AGENT: ClassVar[str] = f"python-telegram-bot v{ptb_ver} (https://python-telegram-bot.org)"
+    USER_AGENT: Final[str] = f"python-telegram-bot v{ptb_ver} (https://python-telegram-bot.org)"
     """:obj:`str`: A description that can be used as user agent for requests made to the Bot API.
     """
-    DEFAULT_NONE: ClassVar = _DEFAULT_NONE
+    DEFAULT_NONE: Final[DefaultValue[None]] = _DEFAULT_NONE
     """:class:`object`: A special object that indicates that an argument of a function was not
     explicitly passed. Used for the timeout parameters of :meth:`post` and :meth:`do_request`.
 
@@ -119,15 +124,16 @@ class BaseRequest(
     async def shutdown(self) -> None:
         """Stop & clear resources used by this class. Must be implemented by a subclass."""
 
+    @final
     async def post(
         self,
         url: str,
-        request_data: RequestData = None,
+        request_data: Optional[RequestData] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-    ) -> Union[JSONDict, bool]:
+    ) -> Union[JSONDict, List[JSONDict], bool]:
         """Makes a request to the Bot API handles the return code and parses the answer.
 
         Warning:
@@ -156,7 +162,7 @@ class BaseRequest(
                 :attr:`DEFAULT_NONE`.
 
         Returns:
-          Dict[:obj:`str`, ...]: The JSON response of the Bot API.
+          The JSON response of the Bot API.
 
         """
         result = await self._request_wrapper(
@@ -173,6 +179,7 @@ class BaseRequest(
         # see https://core.telegram.org/bots/api#making-requests
         return json_data["result"]
 
+    @final
     async def retrieve(
         self,
         url: str,
@@ -223,7 +230,7 @@ class BaseRequest(
         self,
         url: str,
         method: str,
-        request_data: RequestData = None,
+        request_data: Optional[RequestData] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
@@ -277,14 +284,10 @@ class BaseRequest(
                 connect_timeout=connect_timeout,
                 pool_timeout=pool_timeout,
             )
-        except asyncio.CancelledError as exc:
-            # TODO: in py3.8+, CancelledError is a subclass of BaseException, so we can drop this
-            #  clause when we drop py3.7
-            raise exc
         except TelegramError as exc:
             raise exc
         except Exception as exc:
-            raise NetworkError(f"Unknown error in HTTP implementation: {repr(exc)}") from exc
+            raise NetworkError(f"Unknown error in HTTP implementation: {exc!r}") from exc
 
         if HTTPStatus.OK <= code <= 299:
             # 200-299 range are HTTP success statuses
@@ -293,10 +296,7 @@ class BaseRequest(
         response_data = self.parse_json_payload(payload)
 
         description = response_data.get("description")
-        if description:
-            message = description
-        else:
-            message = "Unknown HTTPError"
+        message = description if description else "Unknown HTTPError"
 
         # In some special cases, we can raise more informative exceptions:
         # see https://core.telegram.org/bots/api#responseparameters and
@@ -351,6 +351,7 @@ class BaseRequest(
         try:
             return json.loads(decoded_s)
         except ValueError as exc:
+            _LOGGER.error('Can not load invalid JSON data: "%s"', decoded_s)
             raise TelegramError("Invalid server response") from exc
 
     @abc.abstractmethod
@@ -358,7 +359,7 @@ class BaseRequest(
         self,
         url: str,
         method: str,
-        request_data: RequestData = None,
+        request_data: Optional[RequestData] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,

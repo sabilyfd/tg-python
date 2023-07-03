@@ -2,7 +2,7 @@
 # pylint: disable=too-many-instance-attributes, too-many-arguments
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -19,9 +19,8 @@
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 """This module contains an object that represents a Telegram Message."""
 import datetime
-import sys
 from html import escape
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Tuple, Union
 
 from telegram._chat import Chat
 from telegram._dice import Dice
@@ -36,6 +35,14 @@ from telegram._files.venue import Venue
 from telegram._files.video import Video
 from telegram._files.videonote import VideoNote
 from telegram._files.voice import Voice
+from telegram._forumtopic import (
+    ForumTopicClosed,
+    ForumTopicCreated,
+    ForumTopicEdited,
+    ForumTopicReopened,
+    GeneralForumTopicHidden,
+    GeneralForumTopicUnhidden,
+)
 from telegram._games.game import Game
 from telegram._inline.inlinekeyboardmarkup import InlineKeyboardMarkup
 from telegram._messageautodeletetimerchanged import MessageAutoDeleteTimerChanged
@@ -45,11 +52,22 @@ from telegram._payment.invoice import Invoice
 from telegram._payment.successfulpayment import SuccessfulPayment
 from telegram._poll import Poll
 from telegram._proximityalerttriggered import ProximityAlertTriggered
+from telegram._shared import ChatShared, UserShared
 from telegram._telegramobject import TelegramObject
 from telegram._user import User
-from telegram._utils.datetime import from_timestamp, to_timestamp
+from telegram._utils.argumentparsing import parse_sequence_arg
+from telegram._utils.datetime import extract_tzinfo_from_defaults, from_timestamp
 from telegram._utils.defaultvalue import DEFAULT_NONE, DefaultValue
-from telegram._utils.types import DVInput, FileInput, JSONDict, ODVInput, ReplyMarkup
+from telegram._utils.types import (
+    CorrectOptionID,
+    DVInput,
+    FileInput,
+    JSONDict,
+    MarkdownVersion,
+    ODVInput,
+    ReplyMarkup,
+)
+from telegram._utils.warnings import warn
 from telegram._videochat import (
     VideoChatEnded,
     VideoChatParticipantsInvited,
@@ -57,8 +75,10 @@ from telegram._videochat import (
     VideoChatStarted,
 )
 from telegram._webappdata import WebAppData
+from telegram._writeaccessallowed import WriteAccessAllowed
 from telegram.constants import MessageAttachmentType, ParseMode
 from telegram.helpers import escape_markdown
+from telegram.warnings import PTBDeprecationWarning
 
 if TYPE_CHECKING:
     from telegram import (
@@ -82,7 +102,7 @@ class Message(TelegramObject):
     considered equal, if their :attr:`message_id` and :attr:`chat` are equal.
 
     Note:
-        In Python :keyword:`from` is a reserved word use :paramref:`from_user` instead.
+        In Python :keyword:`from` is a reserved word. Use :paramref:`from_user` instead.
 
     .. versionchanged:: 20.0
 
@@ -104,13 +124,16 @@ class Message(TelegramObject):
             sent to channels. For backward compatibility, this will contain a fake sender user in
             non-channel chats, if the message was sent on behalf of a chat.
         sender_chat (:class:`telegram.Chat`, optional): Sender of the message, sent on behalf of a
-            chat.  For example, the channel itself for channel posts, the supergroup itself for
+            chat. For example, the channel itself for channel posts, the supergroup itself for
             messages from anonymous group administrators, the linked channel for messages
             automatically forwarded to the discussion group. For backward compatibility,
             :attr:`from_user` contains a fake sender user in non-channel chats, if the message was
             sent on behalf of a chat.
         date (:class:`datetime.datetime`): Date the message was sent in Unix time. Converted to
             :class:`datetime.datetime`.
+
+            .. versionchanged:: 20.3
+                |datetime_localization|
         chat (:class:`telegram.Chat`): Conversation the message belongs to.
         forward_from (:class:`telegram.User`, optional): For forwarded messages, sender of
             the original message.
@@ -118,17 +141,25 @@ class Message(TelegramObject):
             or from anonymous administrators, information about the original sender chat.
         forward_from_message_id (:obj:`int`, optional): For forwarded channel posts, identifier of
             the original message in the channel.
-        forward_sender_name	(:obj:`str`, optional): Sender's name for messages forwarded from users
-            who disallow adding a link to their account in forwarded messages.
+        forward_sender_name (:obj:`str`, optional): Sender's name for messages forwarded from
+            users who disallow adding a link to their account in forwarded messages.
         forward_date (:class:`datetime.datetime`, optional): For forwarded messages, date the
             original message was sent in Unix time. Converted to :class:`datetime.datetime`.
-        is_automatic_forward (:obj:`bool`, optional): :obj:`True`, if the message is a channel post
-            that was automatically forwarded to the connected discussion group.
+
+            .. versionchanged:: 20.3
+                |datetime_localization|
+        is_automatic_forward (:obj:`bool`, optional): :obj:`True`, if the message is a channel
+            post that was automatically forwarded to the connected discussion group.
 
             .. versionadded:: 13.9
         reply_to_message (:class:`telegram.Message`, optional): For replies, the original message.
+            Note that the Message object in this field will not contain further
+            ``reply_to_message`` fields even if it itself is a reply.
         edit_date (:class:`datetime.datetime`, optional): Date the message was last edited in Unix
             time. Converted to :class:`datetime.datetime`.
+
+            .. versionchanged:: 20.3
+                |datetime_localization|
         has_protected_content (:obj:`bool`, optional): :obj:`True`, if the message can't be
             forwarded.
 
@@ -136,15 +167,24 @@ class Message(TelegramObject):
         media_group_id (:obj:`str`, optional): The unique identifier of a media message group this
             message belongs to.
         text (:obj:`str`, optional): For text messages, the actual UTF-8 text of the message,
-            0-:tg-const:`telegram.constants.MessageLimit.TEXT_LENGTH`
-            characters.
-        entities (List[:class:`telegram.MessageEntity`], optional): For text messages, special
+            0-:tg-const:`telegram.constants.MessageLimit.MAX_TEXT_LENGTH` characters.
+        entities (Sequence[:class:`telegram.MessageEntity`], optional): For text messages, special
             entities like usernames, URLs, bot commands, etc. that appear in the text. See
             :attr:`parse_entity` and :attr:`parse_entities` methods for how to use properly.
-        caption_entities (List[:class:`telegram.MessageEntity`], optional): For messages with a
+            This list is empty if the message does not contain entities.
+
+            .. versionchanged:: 20.0
+                |sequenceclassargs|
+
+        caption_entities (Sequence[:class:`telegram.MessageEntity`], optional): For messages with a
             Caption. Special entities like usernames, URLs, bot commands, etc. that appear in the
             caption. See :attr:`Message.parse_caption_entity` and :attr:`parse_caption_entities`
-            methods for how to use properly.
+            methods for how to use properly. This list is empty if the message does not contain
+            caption entities.
+
+            .. versionchanged:: 20.0
+                |sequenceclassargs|
+
         audio (:class:`telegram.Audio`, optional): Message is an audio file, information
             about the file.
         document (:class:`telegram.Document`, optional): Message is a general file, information
@@ -153,32 +193,45 @@ class Message(TelegramObject):
             about the animation. For backward compatibility, when this field is set, the document
             field will also be set.
         game (:class:`telegram.Game`, optional): Message is a game, information about the game.
-        photo (List[:class:`telegram.PhotoSize`], optional): Message is a photo, available
-            sizes of the photo.
+        photo (Sequence[:class:`telegram.PhotoSize`], optional): Message is a photo, available
+            sizes of the photo. This list is empty if the message does not contain a photo.
+
+            .. versionchanged:: 20.0
+                |sequenceclassargs|
+
         sticker (:class:`telegram.Sticker`, optional): Message is a sticker, information
             about the sticker.
-        video (:class:`telegram.Video`, optional): Message is a video, information about the video.
+        video (:class:`telegram.Video`, optional): Message is a video, information about the
+            video.
         voice (:class:`telegram.Voice`, optional): Message is a voice message, information about
             the file.
         video_note (:class:`telegram.VideoNote`, optional): Message is a video note, information
             about the video message.
-        new_chat_members (List[:class:`telegram.User`], optional): New members that were added to
-            the group or supergroup and information about them (the bot itself may be one of these
-            members).
+        new_chat_members (Sequence[:class:`telegram.User`], optional): New members that were added
+            to the group or supergroup and information about them (the bot itself may be one of
+            these members). This list is empty if the message does not contain new chat members.
+
+            .. versionchanged:: 20.0
+                |sequenceclassargs|
+
         caption (:obj:`str`, optional): Caption for the animation, audio, document, photo, video
             or voice, 0-:tg-const:`telegram.constants.MessageLimit.CAPTION_LENGTH` characters.
         contact (:class:`telegram.Contact`, optional): Message is a shared contact, information
             about the contact.
         location (:class:`telegram.Location`, optional): Message is a shared location, information
             about the location.
-        venue (:class:`telegram.Venue`, optional): Message is a venue, information about the venue.
-            For backward compatibility, when this field is set, the location field will also be
-            set.
+        venue (:class:`telegram.Venue`, optional): Message is a venue, information about the
+            venue. For backward compatibility, when this field is set, the location field will
+            also be set.
         left_chat_member (:class:`telegram.User`, optional): A member was removed from the group,
             information about them (this member may be the bot itself).
         new_chat_title (:obj:`str`, optional): A chat title was changed to this value.
-        new_chat_photo (List[:class:`telegram.PhotoSize`], optional): A chat photo was changed to
-            this value.
+        new_chat_photo (Sequence[:class:`telegram.PhotoSize`], optional): A chat photo was changed
+            to this value. This list is empty if the message does not contain a new chat photo.
+
+            .. versionchanged:: 20.0
+                |sequenceclassargs|
+
         delete_chat_photo (:obj:`bool`, optional): Service message: The chat photo was deleted.
         group_chat_created (:obj:`bool`, optional): Service message: The group has been created.
         supergroup_chat_created (:obj:`bool`, optional): Service message: The supergroup has been
@@ -194,19 +247,13 @@ class Message(TelegramObject):
             optional): Service message: auto-delete timer settings changed in the chat.
 
             .. versionadded:: 13.4
-        migrate_to_chat_id (:obj:`int`, optional): The group has been migrated to a supergroup with
-            the specified identifier. This number may be greater than 32 bits and some programming
-            languages may have difficulty/silent defects in interpreting it. But it is smaller than
-            52 bits, so a signed 64 bit integer or double-precision float type are safe for storing
-            this identifier.
+        migrate_to_chat_id (:obj:`int`, optional): The group has been migrated to a supergroup
+            with the specified identifier.
         migrate_from_chat_id (:obj:`int`, optional): The supergroup has been migrated from a group
-            with the specified identifier. This number may be greater than 32 bits and some
-            programming languages may have difficulty/silent defects in interpreting it. But it is
-            smaller than 52 bits, so a signed 64 bit integer or double-precision float type are
-            safe for storing this identifier.
+            with the specified identifier.
         pinned_message (:class:`telegram.Message`, optional): Specified message was pinned. Note
-            that the Message object in this field will not contain further :attr:`reply_to_message`
-            fields even if it is itself a reply.
+            that the Message object in this field will not contain further
+            :attr:`reply_to_message` fields even if it is itself a reply.
         invoice (:class:`telegram.Invoice`, optional): Message is an invoice for a payment,
             information about the invoice.
         successful_payment (:class:`telegram.SuccessfulPayment`, optional): Message is a service
@@ -215,13 +262,13 @@ class Message(TelegramObject):
             has logged in.
         forward_signature (:obj:`str`, optional): For messages forwarded from channels, signature
             of the post author if present.
-        author_signature (:obj:`str`, optional):  Signature of the post author for messages in
+        author_signature (:obj:`str`, optional): Signature of the post author for messages in
             channels, or the custom title of an anonymous group administrator.
         passport_data (:class:`telegram.PassportData`, optional): Telegram Passport data.
         poll (:class:`telegram.Poll`, optional): Message is a native poll,
             information about the poll.
-        dice (:class:`telegram.Dice`, optional): Message is a dice with random value from 1 to 6.
-        via_bot (:class:`telegram.User`, optional): Message was sent through an inline bot.
+        dice (:class:`telegram.Dice`, optional): Message is a dice with random value.
+        via_bot (:class:`telegram.User`, optional): Bot through which message was sent.
         proximity_alert_triggered (:class:`telegram.ProximityAlertTriggered`, optional): Service
             message. A user in the chat triggered another user's proximity alert while sharing
             Live Location.
@@ -246,8 +293,56 @@ class Message(TelegramObject):
 
             .. versionadded:: 20.0
         reply_markup (:class:`telegram.InlineKeyboardMarkup`, optional): Inline keyboard attached
-            to the message. ``login_url`` buttons are represented as ordinary url buttons.
-        bot (:class:`telegram.Bot`, optional): The Bot to use for instance methods.
+            to the message. :paramref:`~telegram.InlineKeyboardButton.login_url` buttons are
+            represented as ordinary url buttons.
+        is_topic_message (:obj:`bool`, optional): :obj:`True`, if the message is sent to a forum
+            topic.
+
+            .. versionadded:: 20.0
+        message_thread_id (:obj:`int`, optional): Unique identifier of a message thread to which
+            the message belongs; for supergroups only.
+
+            .. versionadded:: 20.0
+        forum_topic_created (:class:`telegram.ForumTopicCreated`, optional): Service message:
+            forum topic created.
+
+            .. versionadded:: 20.0
+        forum_topic_closed (:class:`telegram.ForumTopicClosed`, optional): Service message:
+            forum topic closed.
+
+            .. versionadded:: 20.0
+        forum_topic_reopened (:class:`telegram.ForumTopicReopened`, optional): Service message:
+            forum topic reopened.
+
+            .. versionadded:: 20.0
+        forum_topic_edited (:class:`telegram.ForumTopicEdited`, optional): Service message:
+            forum topic edited.
+
+            .. versionadded:: 20.0
+        general_forum_topic_hidden (:class:`telegram.GeneralForumTopicHidden`, optional):
+            Service message: General forum topic hidden.
+
+            .. versionadded:: 20.0
+        general_forum_topic_unhidden (:class:`telegram.GeneralForumTopicUnhidden`, optional):
+            Service message: General forum topic unhidden.
+
+            .. versionadded:: 20.0
+        write_access_allowed (:class:`telegram.WriteAccessAllowed`, optional): Service message:
+            the user allowed the bot added to the attachment menu to write messages.
+
+            .. versionadded:: 20.0
+        has_media_spoiler (:obj:`bool`, optional): :obj:`True`, if the message media is covered
+            by a spoiler animation.
+
+            .. versionadded:: 20.0
+        user_shared (:class:`telegram.UserShared`, optional): Service message: a user was shared
+            with the bot.
+
+            .. versionadded:: 20.1
+        chat_shared (:class:`telegram.ChatShared`, optional):Service message: a chat was shared
+            with the bot.
+
+            .. versionadded:: 20.1
 
     Attributes:
         message_id (:obj:`int`): Unique message identifier inside this chat.
@@ -255,94 +350,169 @@ class Message(TelegramObject):
             sent to channels. For backward compatibility, this will contain a fake sender user in
             non-channel chats, if the message was sent on behalf of a chat.
         sender_chat (:class:`telegram.Chat`): Optional. Sender of the message, sent on behalf of a
-            chat. For backward compatibility, :attr:`from_user` contains a fake sender user in
-            non-channel chats, if the message was sent on behalf of a chat.
-        date (:class:`datetime.datetime`): Date the message was sent.
+            chat. For example, the channel itself for channel posts, the supergroup itself for
+            messages from anonymous group administrators, the linked channel for messages
+            automatically forwarded to the discussion group. For backward compatibility,
+            :attr:`from_user` contains a fake sender user in non-channel chats, if the message was
+            sent on behalf of a chat.
+        date (:class:`datetime.datetime`): Date the message was sent in Unix time. Converted to
+            :class:`datetime.datetime`.
+
+            .. versionchanged:: 20.3
+                |datetime_localization|
         chat (:class:`telegram.Chat`): Conversation the message belongs to.
-        forward_from (:class:`telegram.User`): Optional. Sender of the original message.
+        forward_from (:class:`telegram.User`): Optional. For forwarded messages, sender of the
+            original message.
         forward_from_chat (:class:`telegram.Chat`): Optional. For messages forwarded from channels
             or from anonymous administrators, information about the original sender chat.
-        forward_from_message_id (:obj:`int`): Optional. Identifier of the original message in the
-            channel.
-        forward_date (:class:`datetime.datetime`): Optional. Date the original message was sent.
-        is_automatic_forward (:obj:`bool`): Optional. :obj:`True`, if the message is a channel post
-            that was automatically forwarded to the connected discussion group.
+        forward_from_message_id (:obj:`int`): Optional. For forwarded channel posts, identifier of
+            the original message in the channel.
+        forward_date (:class:`datetime.datetime`): Optional. For forwarded messages, date the
+            original message was sent in Unix time. Converted to :class:`datetime.datetime`.
+
+            .. versionchanged:: 20.3
+                |datetime_localization|
+        is_automatic_forward (:obj:`bool`): Optional. :obj:`True`, if the message is a channel
+            post that was automatically forwarded to the connected discussion group.
 
             .. versionadded:: 13.9
         reply_to_message (:class:`telegram.Message`): Optional. For replies, the original message.
             Note that the Message object in this field will not contain further
             ``reply_to_message`` fields even if it itself is a reply.
-        edit_date (:class:`datetime.datetime`): Optional. Date the message was last edited.
+        edit_date (:class:`datetime.datetime`): Optional. Date the message was last edited in Unix
+            time. Converted to :class:`datetime.datetime`.
+
+            .. versionchanged:: 20.3
+                |datetime_localization|
         has_protected_content (:obj:`bool`): Optional. :obj:`True`, if the message can't be
             forwarded.
 
             .. versionadded:: 13.9
         media_group_id (:obj:`str`): Optional. The unique identifier of a media message group this
             message belongs to.
-        text (:obj:`str`): Optional. The actual UTF-8 text of the message.
-        entities (List[:class:`telegram.MessageEntity`]): Special entities like
-            usernames, URLs, bot commands, etc. that appear in the text. See
-            :attr:`Message.parse_entity` and :attr:`parse_entities` methods for how to use
-            properly. This list is empty if the message does not contain entities.
-        caption_entities (List[:class:`telegram.MessageEntity`]): Special entities like
-            usernames, URLs, bot commands, etc. that appear in the caption. See
-            :attr:`Message.parse_caption_entity` and :attr:`parse_caption_entities` methods for how
-            to use properly. This list is empty if the message does not contain caption entities.
-        audio (:class:`telegram.Audio`): Optional. Information about the file.
-        document (:class:`telegram.Document`): Optional. Information about the file.
-        animation (:class:`telegram.Animation`) Optional. Information about the file.
-            For backward compatibility, when this field is set, the document field will also be
-            set.
-        game (:class:`telegram.Game`): Optional. Information about the game.
-        photo (List[:class:`telegram.PhotoSize`]): Available sizes of the photo.
-            This list is empty if the message does not contain a photo.
-        sticker (:class:`telegram.Sticker`): Optional. Information about the sticker.
-        video (:class:`telegram.Video`): Optional. Information about the video.
-        voice (:class:`telegram.Voice`): Optional. Information about the file.
-        video_note (:class:`telegram.VideoNote`): Optional. Information about the video message.
-        new_chat_members (List[:class:`telegram.User`]): Information about new members to
-            the chat. The bot itself may be one of these members.
-            This list is empty if the message does not contain new chat members.
-        caption (:obj:`str`): Optional. Caption for the document, photo or video,
-            0-:tg-const:`telegram.constants.MessageLimit.CAPTION_LENGTH`
-            characters.
-        contact (:class:`telegram.Contact`): Optional. Information about the contact.
-        location (:class:`telegram.Location`): Optional. Information about the location.
-        venue (:class:`telegram.Venue`): Optional. Information about the venue.
-        left_chat_member (:class:`telegram.User`): Optional. Information about the user that left
-            the group. (this member may be the bot itself).
+        text (:obj:`str`): Optional. For text messages, the actual UTF-8 text of the message,
+            0-:tg-const:`telegram.constants.MessageLimit.MAX_TEXT_LENGTH` characters.
+        entities (Tuple[:class:`telegram.MessageEntity`]): Optional. For text messages, special
+            entities like usernames, URLs, bot commands, etc. that appear in the text. See
+            :attr:`parse_entity` and :attr:`parse_entities` methods for how to use properly.
+            This list is empty if the message does not contain entities.
+
+            .. versionchanged:: 20.0
+                |tupleclassattrs|
+
+        caption_entities (Tuple[:class:`telegram.MessageEntity`]): Optional. For messages with a
+            Caption. Special entities like usernames, URLs, bot commands, etc. that appear in the
+            caption. See :attr:`Message.parse_caption_entity` and :attr:`parse_caption_entities`
+            methods for how to use properly. This list is empty if the message does not contain
+            caption entities.
+
+            .. versionchanged:: 20.0
+                |tupleclassattrs|
+
+        audio (:class:`telegram.Audio`): Optional. Message is an audio file, information
+            about the file.
+
+            .. seealso:: :wiki:`Working with Files and Media <Working-with-Files-and-Media>`
+        document (:class:`telegram.Document`): Optional. Message is a general file, information
+            about the file.
+
+            .. seealso:: :wiki:`Working with Files and Media <Working-with-Files-and-Media>`
+        animation (:class:`telegram.Animation`): Optional. Message is an animation, information
+            about the animation. For backward compatibility, when this field is set, the document
+            field will also be set.
+
+            .. seealso:: :wiki:`Working with Files and Media <Working-with-Files-and-Media>`
+        game (:class:`telegram.Game`): Optional. Message is a game, information about the game.
+        photo (Tuple[:class:`telegram.PhotoSize`]): Optional. Message is a photo, available
+            sizes of the photo. This list is empty if the message does not contain a photo.
+
+            .. seealso:: :wiki:`Working with Files and Media <Working-with-Files-and-Media>`
+
+            .. versionchanged:: 20.0
+                |tupleclassattrs|
+
+        sticker (:class:`telegram.Sticker`): Optional. Message is a sticker, information
+            about the sticker.
+
+            .. seealso:: :wiki:`Working with Files and Media <Working-with-Files-and-Media>`
+        video (:class:`telegram.Video`): Optional. Message is a video, information about the
+            video.
+
+            .. seealso:: :wiki:`Working with Files and Media <Working-with-Files-and-Media>`
+        voice (:class:`telegram.Voice`): Optional. Message is a voice message, information about
+            the file.
+
+            .. seealso:: :wiki:`Working with Files and Media <Working-with-Files-and-Media>`
+        video_note (:class:`telegram.VideoNote`): Optional. Message is a video note, information
+            about the video message.
+
+            .. seealso:: :wiki:`Working with Files and Media <Working-with-Files-and-Media>`
+        new_chat_members (Tuple[:class:`telegram.User`]): Optional. New members that were added
+            to the group or supergroup and information about them (the bot itself may be one of
+            these members). This list is empty if the message does not contain new chat members.
+
+            .. versionchanged:: 20.0
+                |tupleclassattrs|
+        caption (:obj:`str`): Optional. Caption for the animation, audio, document, photo, video
+            or voice, 0-:tg-const:`telegram.constants.MessageLimit.CAPTION_LENGTH` characters.
+        contact (:class:`telegram.Contact`): Optional. Message is a shared contact, information
+            about the contact.
+        location (:class:`telegram.Location`): Optional. Message is a shared location, information
+            about the location.
+        venue (:class:`telegram.Venue`): Optional. Message is a venue, information about the
+            venue. For backward compatibility, when this field is set, the location field will
+            also be set.
+        left_chat_member (:class:`telegram.User`): Optional. A member was removed from the group,
+            information about them (this member may be the bot itself).
         new_chat_title (:obj:`str`): Optional. A chat title was changed to this value.
-        new_chat_photo (List[:class:`telegram.PhotoSize`]): A chat photo was changed to
+        new_chat_photo (Tuple[:class:`telegram.PhotoSize`]): A chat photo was changed to
             this value. This list is empty if the message does not contain a new chat photo.
-        delete_chat_photo (:obj:`bool`): Optional. The chat photo was deleted.
-        group_chat_created (:obj:`bool`): Optional. The group has been created.
-        supergroup_chat_created (:obj:`bool`): Optional. The supergroup has been created.
-        channel_chat_created (:obj:`bool`): Optional. The channel has been created.
+
+            .. versionchanged:: 20.0
+                |tupleclassattrs|
+
+        delete_chat_photo (:obj:`bool`): Optional. Service message: The chat photo was deleted.
+        group_chat_created (:obj:`bool`): Optional. Service message: The group has been created.
+        supergroup_chat_created (:obj:`bool`): Optional. Service message: The supergroup has been
+            created. This field can't be received in a message coming through updates, because bot
+            can't be a member of a supergroup when it is created. It can only be found in
+            :attr:`reply_to_message` if someone replies to a very first message in a directly
+            created supergroup.
+        channel_chat_created (:obj:`bool`): Optional. Service message: The channel has been
+            created. This field can't be received in a message coming through updates, because bot
+            can't be a member of a channel when it is created. It can only be found in
+            :attr:`reply_to_message` if someone replies to a very first message in a channel.
         message_auto_delete_timer_changed (:class:`telegram.MessageAutoDeleteTimerChanged`):
             Optional. Service message: auto-delete timer settings changed in the chat.
 
             .. versionadded:: 13.4
-        migrate_to_chat_id (:obj:`int`): Optional. The group has been migrated to a supergroup with
-            the specified identifier.
+        migrate_to_chat_id (:obj:`int`): Optional. The group has been migrated to a supergroup
+            with the specified identifier.
         migrate_from_chat_id (:obj:`int`): Optional. The supergroup has been migrated from a group
             with the specified identifier.
-        pinned_message (:class:`telegram.Message`): Optional. Specified message was pinned.
-        invoice (:class:`telegram.Invoice`): Optional. Information about the invoice.
-        successful_payment (:class:`telegram.SuccessfulPayment`): Optional. Information about the
-            payment.
+        pinned_message (:class:`telegram.Message`): Optional. Specified message was pinned. Note
+            that the Message object in this field will not contain further
+            :attr:`reply_to_message` fields even if it is itself a reply.
+        invoice (:class:`telegram.Invoice`): Optional. Message is an invoice for a payment,
+            information about the invoice.
+        successful_payment (:class:`telegram.SuccessfulPayment`): Optional. Message is a service
+            message about a successful payment, information about the payment.
         connected_website (:obj:`str`): Optional. The domain name of the website on which the user
             has logged in.
-        forward_signature (:obj:`str`): Optional. Signature of the post author for messages
-            forwarded from channels.
-        forward_sender_name	(:obj:`str`): Optional. Sender's name for messages forwarded from users
-            who disallow adding a link to their account in forwarded messages.
+        forward_signature (:obj:`str`): Optional. For messages forwarded from channels, signature
+            of the post author if present.
         author_signature (:obj:`str`): Optional. Signature of the post author for messages in
             channels, or the custom title of an anonymous group administrator.
+        forward_sender_name (:obj:`str`): Optional. Sender's name for messages forwarded from
+            users who disallow adding a link to their account in forwarded messages.
         passport_data (:class:`telegram.PassportData`): Optional. Telegram Passport data.
+
+            Examples:
+                :any:`Passport Bot <examples.passportbot>`
         poll (:class:`telegram.Poll`): Optional. Message is a native poll,
             information about the poll.
-        dice (:class:`telegram.Dice`): Optional. Message is a dice.
-        via_bot (:class:`telegram.User`): Optional. Bot through which the message was sent.
+        dice (:class:`telegram.Dice`): Optional. Message is a dice with random value.
+        via_bot (:class:`telegram.User`): Optional. Bot through which message was sent.
         proximity_alert_triggered (:class:`telegram.ProximityAlertTriggered`): Optional. Service
             message. A user in the chat triggered another user's proximity alert while sharing
             Live Location.
@@ -367,11 +537,64 @@ class Message(TelegramObject):
 
             .. versionadded:: 20.0
         reply_markup (:class:`telegram.InlineKeyboardMarkup`): Optional. Inline keyboard attached
-            to the message.
-        bot (:class:`telegram.Bot`): Optional. The Bot to use for instance methods.
+            to the message. :paramref:`~telegram.InlineKeyboardButton.login_url` buttons are
+            represented as ordinary url buttons.
+        is_topic_message (:obj:`bool`): Optional. :obj:`True`, if the message is sent to a forum
+            topic.
 
-    .. |custom_emoji_formatting_note| replace:: Custom emoji entities will currently be ignored
-        by this function. Instead, the supplied replacement for the emoji will be used.
+            .. versionadded:: 20.0
+        message_thread_id (:obj:`int`): Optional. Unique identifier of a message thread to which
+            the message belongs; for supergroups only.
+
+            .. versionadded:: 20.0
+        forum_topic_created (:class:`telegram.ForumTopicCreated`): Optional. Service message:
+            forum topic created.
+
+            .. versionadded:: 20.0
+        forum_topic_closed (:class:`telegram.ForumTopicClosed`): Optional. Service message:
+            forum topic closed.
+
+            .. versionadded:: 20.0
+        forum_topic_reopened (:class:`telegram.ForumTopicReopened`): Optional. Service message:
+            forum topic reopened.
+
+            .. versionadded:: 20.0
+        forum_topic_edited (:class:`telegram.ForumTopicEdited`): Optional. Service message:
+            forum topic edited.
+
+            .. versionadded:: 20.0
+        general_forum_topic_hidden (:class:`telegram.GeneralForumTopicHidden`): Optional.
+            Service message: General forum topic hidden.
+
+            .. versionadded:: 20.0
+        general_forum_topic_unhidden (:class:`telegram.GeneralForumTopicUnhidden`): Optional.
+            Service message: General forum topic unhidden.
+
+            .. versionadded:: 20.0
+        write_access_allowed (:class:`telegram.WriteAccessAllowed`): Optional. Service message:
+            the user allowed the bot added to the attachment menu to write messages.
+
+            .. versionadded:: 20.0
+        has_media_spoiler (:obj:`bool`): Optional. :obj:`True`, if the message media is covered
+            by a spoiler animation.
+
+            .. versionadded:: 20.0
+        user_shared (:class:`telegram.UserShared`): Optional. Service message: a user was shared
+            with the bot.
+
+            .. versionadded:: 20.1
+        chat_shared (:class:`telegram.ChatShared`): Optional. Service message: a chat was shared
+            with the bot.
+
+            .. versionadded:: 20.1
+
+    .. |custom_emoji_formatting_note| replace:: Custom emoji entities will be ignored by this
+        function. Instead, the supplied replacement for the emoji will be used.
+
+    .. |custom_emoji_md1_deprecation| replace:: Since custom emoji entities are not supported by
+       :attr:`~telegram.constants.ParseMode.MARKDOWN`, this method will raise a
+       :exc:`ValueError` in future versions instead of falling back to the supplied replacement
+       for the emoji.
     """
 
     # fmt: on
@@ -436,6 +659,18 @@ class Message(TelegramObject):
         "is_automatic_forward",
         "has_protected_content",
         "web_app_data",
+        "is_topic_message",
+        "message_thread_id",
+        "forum_topic_created",
+        "forum_topic_closed",
+        "forum_topic_reopened",
+        "forum_topic_edited",
+        "general_forum_topic_hidden",
+        "general_forum_topic_unhidden",
+        "write_access_allowed",
+        "has_media_spoiler",
+        "user_shared",
+        "chat_shared",
     )
 
     def __init__(
@@ -443,131 +678,168 @@ class Message(TelegramObject):
         message_id: int,
         date: datetime.datetime,
         chat: Chat,
-        from_user: User = None,
-        forward_from: User = None,
-        forward_from_chat: Chat = None,
-        forward_from_message_id: int = None,
-        forward_date: datetime.datetime = None,
-        reply_to_message: "Message" = None,
-        edit_date: datetime.datetime = None,
-        text: str = None,
-        entities: List["MessageEntity"] = None,
-        caption_entities: List["MessageEntity"] = None,
-        audio: Audio = None,
-        document: Document = None,
-        game: Game = None,
-        photo: List[PhotoSize] = None,
-        sticker: Sticker = None,
-        video: Video = None,
-        voice: Voice = None,
-        video_note: VideoNote = None,
-        new_chat_members: List[User] = None,
-        caption: str = None,
-        contact: Contact = None,
-        location: Location = None,
-        venue: Venue = None,
-        left_chat_member: User = None,
-        new_chat_title: str = None,
-        new_chat_photo: List[PhotoSize] = None,
-        delete_chat_photo: bool = None,
-        group_chat_created: bool = None,
-        supergroup_chat_created: bool = None,
-        channel_chat_created: bool = None,
-        migrate_to_chat_id: int = None,
-        migrate_from_chat_id: int = None,
-        pinned_message: "Message" = None,
-        invoice: Invoice = None,
-        successful_payment: SuccessfulPayment = None,
-        forward_signature: str = None,
-        author_signature: str = None,
-        media_group_id: str = None,
-        connected_website: str = None,
-        animation: Animation = None,
-        passport_data: PassportData = None,
-        poll: Poll = None,
-        forward_sender_name: str = None,
-        reply_markup: InlineKeyboardMarkup = None,
-        bot: "Bot" = None,
-        dice: Dice = None,
-        via_bot: User = None,
-        proximity_alert_triggered: ProximityAlertTriggered = None,
-        sender_chat: Chat = None,
-        video_chat_started: VideoChatStarted = None,
-        video_chat_ended: VideoChatEnded = None,
-        video_chat_participants_invited: VideoChatParticipantsInvited = None,
-        message_auto_delete_timer_changed: MessageAutoDeleteTimerChanged = None,
-        video_chat_scheduled: VideoChatScheduled = None,
-        is_automatic_forward: bool = None,
-        has_protected_content: bool = None,
-        web_app_data: WebAppData = None,
-        **_kwargs: Any,
+        from_user: Optional[User] = None,
+        forward_from: Optional[User] = None,
+        forward_from_chat: Optional[Chat] = None,
+        forward_from_message_id: Optional[int] = None,
+        forward_date: Optional[datetime.datetime] = None,
+        reply_to_message: Optional["Message"] = None,
+        edit_date: Optional[datetime.datetime] = None,
+        text: Optional[str] = None,
+        entities: Optional[Sequence["MessageEntity"]] = None,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
+        audio: Optional[Audio] = None,
+        document: Optional[Document] = None,
+        game: Optional[Game] = None,
+        photo: Optional[Sequence[PhotoSize]] = None,
+        sticker: Optional[Sticker] = None,
+        video: Optional[Video] = None,
+        voice: Optional[Voice] = None,
+        video_note: Optional[VideoNote] = None,
+        new_chat_members: Optional[Sequence[User]] = None,
+        caption: Optional[str] = None,
+        contact: Optional[Contact] = None,
+        location: Optional[Location] = None,
+        venue: Optional[Venue] = None,
+        left_chat_member: Optional[User] = None,
+        new_chat_title: Optional[str] = None,
+        new_chat_photo: Optional[Sequence[PhotoSize]] = None,
+        delete_chat_photo: Optional[bool] = None,
+        group_chat_created: Optional[bool] = None,
+        supergroup_chat_created: Optional[bool] = None,
+        channel_chat_created: Optional[bool] = None,
+        migrate_to_chat_id: Optional[int] = None,
+        migrate_from_chat_id: Optional[int] = None,
+        pinned_message: Optional["Message"] = None,
+        invoice: Optional[Invoice] = None,
+        successful_payment: Optional[SuccessfulPayment] = None,
+        forward_signature: Optional[str] = None,
+        author_signature: Optional[str] = None,
+        media_group_id: Optional[str] = None,
+        connected_website: Optional[str] = None,
+        animation: Optional[Animation] = None,
+        passport_data: Optional[PassportData] = None,
+        poll: Optional[Poll] = None,
+        forward_sender_name: Optional[str] = None,
+        reply_markup: Optional[InlineKeyboardMarkup] = None,
+        dice: Optional[Dice] = None,
+        via_bot: Optional[User] = None,
+        proximity_alert_triggered: Optional[ProximityAlertTriggered] = None,
+        sender_chat: Optional[Chat] = None,
+        video_chat_started: Optional[VideoChatStarted] = None,
+        video_chat_ended: Optional[VideoChatEnded] = None,
+        video_chat_participants_invited: Optional[VideoChatParticipantsInvited] = None,
+        message_auto_delete_timer_changed: Optional[MessageAutoDeleteTimerChanged] = None,
+        video_chat_scheduled: Optional[VideoChatScheduled] = None,
+        is_automatic_forward: Optional[bool] = None,
+        has_protected_content: Optional[bool] = None,
+        web_app_data: Optional[WebAppData] = None,
+        is_topic_message: Optional[bool] = None,
+        message_thread_id: Optional[int] = None,
+        forum_topic_created: Optional[ForumTopicCreated] = None,
+        forum_topic_closed: Optional[ForumTopicClosed] = None,
+        forum_topic_reopened: Optional[ForumTopicReopened] = None,
+        forum_topic_edited: Optional[ForumTopicEdited] = None,
+        general_forum_topic_hidden: Optional[GeneralForumTopicHidden] = None,
+        general_forum_topic_unhidden: Optional[GeneralForumTopicUnhidden] = None,
+        write_access_allowed: Optional[WriteAccessAllowed] = None,
+        has_media_spoiler: Optional[bool] = None,
+        user_shared: Optional[UserShared] = None,
+        chat_shared: Optional[ChatShared] = None,
+        *,
+        api_kwargs: Optional[JSONDict] = None,
     ):
+        super().__init__(api_kwargs=api_kwargs)
+
         # Required
-        self.message_id = message_id
+        self.message_id: int = message_id
         # Optionals
-        self.from_user = from_user
-        self.sender_chat = sender_chat
-        self.date = date
-        self.chat = chat
-        self.forward_from = forward_from
-        self.forward_from_chat = forward_from_chat
-        self.forward_date = forward_date
-        self.is_automatic_forward = is_automatic_forward
-        self.reply_to_message = reply_to_message
-        self.edit_date = edit_date
-        self.has_protected_content = has_protected_content
-        self.text = text
-        self.entities = entities or []
-        self.caption_entities = caption_entities or []
-        self.audio = audio
-        self.game = game
-        self.document = document
-        self.photo = photo or []
-        self.sticker = sticker
-        self.video = video
-        self.voice = voice
-        self.video_note = video_note
-        self.caption = caption
-        self.contact = contact
-        self.location = location
-        self.venue = venue
-        self.new_chat_members = new_chat_members or []
-        self.left_chat_member = left_chat_member
-        self.new_chat_title = new_chat_title
-        self.new_chat_photo = new_chat_photo or []
-        self.delete_chat_photo = bool(delete_chat_photo)
-        self.group_chat_created = bool(group_chat_created)
-        self.supergroup_chat_created = bool(supergroup_chat_created)
-        self.migrate_to_chat_id = migrate_to_chat_id
-        self.migrate_from_chat_id = migrate_from_chat_id
-        self.channel_chat_created = bool(channel_chat_created)
-        self.message_auto_delete_timer_changed = message_auto_delete_timer_changed
-        self.pinned_message = pinned_message
-        self.forward_from_message_id = forward_from_message_id
-        self.invoice = invoice
-        self.successful_payment = successful_payment
-        self.connected_website = connected_website
-        self.forward_signature = forward_signature
-        self.forward_sender_name = forward_sender_name
-        self.author_signature = author_signature
-        self.media_group_id = media_group_id
-        self.animation = animation
-        self.passport_data = passport_data
-        self.poll = poll
-        self.dice = dice
-        self.via_bot = via_bot
-        self.proximity_alert_triggered = proximity_alert_triggered
-        self.video_chat_scheduled = video_chat_scheduled
-        self.video_chat_started = video_chat_started
-        self.video_chat_ended = video_chat_ended
-        self.video_chat_participants_invited = video_chat_participants_invited
-        self.reply_markup = reply_markup
-        self.web_app_data = web_app_data
-        self.set_bot(bot)
+        self.from_user: Optional[User] = from_user
+        self.sender_chat: Optional[Chat] = sender_chat
+        self.date: datetime.datetime = date
+        self.chat: Chat = chat
+        self.forward_from: Optional[User] = forward_from
+        self.forward_from_chat: Optional[Chat] = forward_from_chat
+        self.forward_date: Optional[datetime.datetime] = forward_date
+        self.is_automatic_forward: Optional[bool] = is_automatic_forward
+        self.reply_to_message: Optional[Message] = reply_to_message
+        self.edit_date: Optional[datetime.datetime] = edit_date
+        self.has_protected_content: Optional[bool] = has_protected_content
+        self.text: Optional[str] = text
+        self.entities: Tuple["MessageEntity", ...] = parse_sequence_arg(entities)
+        self.caption_entities: Tuple["MessageEntity", ...] = parse_sequence_arg(caption_entities)
+        self.audio: Optional[Audio] = audio
+        self.game: Optional[Game] = game
+        self.document: Optional[Document] = document
+        self.photo: Tuple[PhotoSize, ...] = parse_sequence_arg(photo)
+        self.sticker: Optional[Sticker] = sticker
+        self.video: Optional[Video] = video
+        self.voice: Optional[Voice] = voice
+        self.video_note: Optional[VideoNote] = video_note
+        self.caption: Optional[str] = caption
+        self.contact: Optional[Contact] = contact
+        self.location: Optional[Location] = location
+        self.venue: Optional[Venue] = venue
+        self.new_chat_members: Tuple[User, ...] = parse_sequence_arg(new_chat_members)
+        self.left_chat_member: Optional[User] = left_chat_member
+        self.new_chat_title: Optional[str] = new_chat_title
+        self.new_chat_photo: Tuple[PhotoSize, ...] = parse_sequence_arg(new_chat_photo)
+        self.delete_chat_photo: Optional[bool] = bool(delete_chat_photo)
+        self.group_chat_created: Optional[bool] = bool(group_chat_created)
+        self.supergroup_chat_created: Optional[bool] = bool(supergroup_chat_created)
+        self.migrate_to_chat_id: Optional[int] = migrate_to_chat_id
+        self.migrate_from_chat_id: Optional[int] = migrate_from_chat_id
+        self.channel_chat_created: Optional[bool] = bool(channel_chat_created)
+        self.message_auto_delete_timer_changed: Optional[
+            MessageAutoDeleteTimerChanged
+        ] = message_auto_delete_timer_changed
+        self.pinned_message: Optional[Message] = pinned_message
+        self.forward_from_message_id: Optional[int] = forward_from_message_id
+        self.invoice: Optional[Invoice] = invoice
+        self.successful_payment: Optional[SuccessfulPayment] = successful_payment
+        self.connected_website: Optional[str] = connected_website
+        self.forward_signature: Optional[str] = forward_signature
+        self.forward_sender_name: Optional[str] = forward_sender_name
+        self.author_signature: Optional[str] = author_signature
+        self.media_group_id: Optional[str] = media_group_id
+        self.animation: Optional[Animation] = animation
+        self.passport_data: Optional[PassportData] = passport_data
+        self.poll: Optional[Poll] = poll
+        self.dice: Optional[Dice] = dice
+        self.via_bot: Optional[User] = via_bot
+        self.proximity_alert_triggered: Optional[
+            ProximityAlertTriggered
+        ] = proximity_alert_triggered
+        self.video_chat_scheduled: Optional[VideoChatScheduled] = video_chat_scheduled
+        self.video_chat_started: Optional[VideoChatStarted] = video_chat_started
+        self.video_chat_ended: Optional[VideoChatEnded] = video_chat_ended
+        self.video_chat_participants_invited: Optional[
+            VideoChatParticipantsInvited
+        ] = video_chat_participants_invited
+        self.reply_markup: Optional[InlineKeyboardMarkup] = reply_markup
+        self.web_app_data: Optional[WebAppData] = web_app_data
+        self.is_topic_message: Optional[bool] = is_topic_message
+        self.message_thread_id: Optional[int] = message_thread_id
+        self.forum_topic_created: Optional[ForumTopicCreated] = forum_topic_created
+        self.forum_topic_closed: Optional[ForumTopicClosed] = forum_topic_closed
+        self.forum_topic_reopened: Optional[ForumTopicReopened] = forum_topic_reopened
+        self.forum_topic_edited: Optional[ForumTopicEdited] = forum_topic_edited
+        self.general_forum_topic_hidden: Optional[
+            GeneralForumTopicHidden
+        ] = general_forum_topic_hidden
+        self.general_forum_topic_unhidden: Optional[
+            GeneralForumTopicUnhidden
+        ] = general_forum_topic_unhidden
+        self.write_access_allowed: Optional[WriteAccessAllowed] = write_access_allowed
+        self.has_media_spoiler: Optional[bool] = has_media_spoiler
+        self.user_shared: Optional[UserShared] = user_shared
+        self.chat_shared: Optional[ChatShared] = chat_shared
 
         self._effective_attachment = DEFAULT_NONE
 
         self._id_attrs = (self.message_id, self.chat)
+
+        self._freeze()
 
     @property
     def chat_id(self) -> int:
@@ -587,14 +859,20 @@ class Message(TelegramObject):
     def link(self) -> Optional[str]:
         """:obj:`str`: Convenience property. If the chat of the message is not
         a private chat or normal group, returns a t.me link of the message.
+
+            .. versionchanged:: 20.3
+                For messages that are replies or part of a forum topic, the link now points
+                to the corresponding thread view.
         """
         if self.chat.type not in [Chat.PRIVATE, Chat.GROUP]:
-            if self.chat.username:
-                to_link = self.chat.username
-            else:
-                # Get rid of leading -100 for supergroups
-                to_link = f"c/{str(self.chat.id)[4:]}"
-            return f"https://t.me/{to_link}/{self.message_id}"
+            # the else block gets rid of leading -100 for supergroups:
+            to_link = self.chat.username if self.chat.username else f"c/{str(self.chat.id)[4:]}"
+            baselink = f"https://t.me/{to_link}/{self.message_id}"
+
+            # adds the thread for topics and replies
+            if (self.is_topic_message and self.message_thread_id) or self.reply_to_message:
+                baselink = f"{baselink}?thread={self.message_thread_id}"
+            return baselink
         return None
 
     @classmethod
@@ -605,17 +883,20 @@ class Message(TelegramObject):
         if not data:
             return None
 
-        data["from_user"] = User.de_json(data.get("from"), bot)
+        # Get the local timezone from the bot if it has defaults
+        loc_tzinfo = extract_tzinfo_from_defaults(bot)
+
+        data["from_user"] = User.de_json(data.pop("from", None), bot)
         data["sender_chat"] = Chat.de_json(data.get("sender_chat"), bot)
-        data["date"] = from_timestamp(data["date"])
+        data["date"] = from_timestamp(data["date"], tzinfo=loc_tzinfo)
         data["chat"] = Chat.de_json(data.get("chat"), bot)
         data["entities"] = MessageEntity.de_list(data.get("entities"), bot)
         data["caption_entities"] = MessageEntity.de_list(data.get("caption_entities"), bot)
         data["forward_from"] = User.de_json(data.get("forward_from"), bot)
         data["forward_from_chat"] = Chat.de_json(data.get("forward_from_chat"), bot)
-        data["forward_date"] = from_timestamp(data.get("forward_date"))
+        data["forward_date"] = from_timestamp(data.get("forward_date"), tzinfo=loc_tzinfo)
         data["reply_to_message"] = Message.de_json(data.get("reply_to_message"), bot)
-        data["edit_date"] = from_timestamp(data.get("edit_date"))
+        data["edit_date"] = from_timestamp(data.get("edit_date"), tzinfo=loc_tzinfo)
         data["audio"] = Audio.de_json(data.get("audio"), bot)
         data["document"] = Document.de_json(data.get("document"), bot)
         data["animation"] = Animation.de_json(data.get("animation"), bot)
@@ -654,22 +935,42 @@ class Message(TelegramObject):
             data.get("video_chat_participants_invited"), bot
         )
         data["web_app_data"] = WebAppData.de_json(data.get("web_app_data"), bot)
+        data["forum_topic_closed"] = ForumTopicClosed.de_json(data.get("forum_topic_closed"), bot)
+        data["forum_topic_created"] = ForumTopicCreated.de_json(
+            data.get("forum_topic_created"), bot
+        )
+        data["forum_topic_reopened"] = ForumTopicReopened.de_json(
+            data.get("forum_topic_reopened"), bot
+        )
+        data["forum_topic_edited"] = ForumTopicEdited.de_json(data.get("forum_topic_edited"), bot)
+        data["general_forum_topic_hidden"] = GeneralForumTopicHidden.de_json(
+            data.get("general_forum_topic_hidden"), bot
+        )
+        data["general_forum_topic_unhidden"] = GeneralForumTopicUnhidden.de_json(
+            data.get("general_forum_topic_unhidden"), bot
+        )
+        data["write_access_allowed"] = WriteAccessAllowed.de_json(
+            data.get("write_access_allowed"), bot
+        )
+        data["user_shared"] = UserShared.de_json(data.get("user_shared"), bot)
+        data["chat_shared"] = ChatShared.de_json(data.get("chat_shared"), bot)
 
-        return cls(bot=bot, **data)
+        return super().de_json(data=data, bot=bot)
 
     @property
     def effective_attachment(
         self,
     ) -> Union[
+        Animation,
+        Audio,
         Contact,
         Dice,
         Document,
-        Animation,
         Game,
         Invoice,
         Location,
         PassportData,
-        List[PhotoSize],
+        Sequence[PhotoSize],
         Poll,
         Sticker,
         SuccessfulPayment,
@@ -700,7 +1001,9 @@ class Message(TelegramObject):
         * :class:`telegram.VideoNote`
         * :class:`telegram.Voice`
 
-         Otherwise :obj:`None` is returned.
+        Otherwise :obj:`None` is returned.
+
+        .. seealso:: :wiki:`Working with Files and Media <Working-with-Files-and-Media>`
 
         .. versionchanged:: 20.0
             :attr:`dice`, :attr:`passport_data` and :attr:`poll` are now also considered to be an
@@ -718,30 +1021,6 @@ class Message(TelegramObject):
             self._effective_attachment = None
 
         return self._effective_attachment  # type: ignore[return-value]
-
-    def to_dict(self) -> JSONDict:
-        """See :meth:`telegram.TelegramObject.to_dict`."""
-        data = super().to_dict()
-
-        # Required
-        data["date"] = to_timestamp(self.date)
-        # Optionals
-        if self.forward_date:
-            data["forward_date"] = to_timestamp(self.forward_date)
-        if self.edit_date:
-            data["edit_date"] = to_timestamp(self.edit_date)
-        if self.photo:
-            data["photo"] = [p.to_dict() for p in self.photo]
-        if self.entities:
-            data["entities"] = [e.to_dict() for e in self.entities]
-        if self.caption_entities:
-            data["caption_entities"] = [e.to_dict() for e in self.caption_entities]
-        if self.new_chat_photo:
-            data["new_chat_photo"] = [p.to_dict() for p in self.new_chat_photo]
-        if self.new_chat_members:
-            data["new_chat_members"] = [u.to_dict() for u in self.new_chat_members]
-
-        return data
 
     def _quote(self, quote: Optional[bool], reply_to_message_id: Optional[int]) -> Optional[int]:
         """Modify kwargs for replying with or without quoting."""
@@ -770,18 +1049,19 @@ class Message(TelegramObject):
         parse_mode: ODVInput[str] = DEFAULT_NONE,
         disable_web_page_preview: ODVInput[bool] = DEFAULT_NONE,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
-        quote: bool = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -810,6 +1090,7 @@ class Message(TelegramObject):
             allow_sending_without_reply=allow_sending_without_reply,
             entities=entities,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
             read_timeout=read_timeout,
             write_timeout=write_timeout,
             connect_timeout=connect_timeout,
@@ -822,18 +1103,19 @@ class Message(TelegramObject):
         text: str,
         disable_web_page_preview: ODVInput[bool] = DEFAULT_NONE,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
-        quote: bool = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -872,6 +1154,7 @@ class Message(TelegramObject):
             allow_sending_without_reply=allow_sending_without_reply,
             entities=entities,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
             read_timeout=read_timeout,
             write_timeout=write_timeout,
             connect_timeout=connect_timeout,
@@ -884,18 +1167,19 @@ class Message(TelegramObject):
         text: str,
         disable_web_page_preview: ODVInput[bool] = DEFAULT_NONE,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
-        quote: bool = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -930,6 +1214,7 @@ class Message(TelegramObject):
             allow_sending_without_reply=allow_sending_without_reply,
             entities=entities,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
             read_timeout=read_timeout,
             write_timeout=write_timeout,
             connect_timeout=connect_timeout,
@@ -942,18 +1227,19 @@ class Message(TelegramObject):
         text: str,
         disable_web_page_preview: ODVInput[bool] = DEFAULT_NONE,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
-        quote: bool = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -988,6 +1274,7 @@ class Message(TelegramObject):
             allow_sending_without_reply=allow_sending_without_reply,
             entities=entities,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
             read_timeout=read_timeout,
             write_timeout=write_timeout,
             connect_timeout=connect_timeout,
@@ -997,21 +1284,25 @@ class Message(TelegramObject):
 
     async def reply_media_group(
         self,
-        media: List[
+        media: Sequence[
             Union["InputMediaAudio", "InputMediaDocument", "InputMediaPhoto", "InputMediaVideo"]
         ],
         disable_notification: ODVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
+        reply_to_message_id: Optional[int] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
-        quote: bool = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = 20,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
-    ) -> List["Message"]:
+        api_kwargs: Optional[JSONDict] = None,
+        caption: Optional[str] = None,
+        parse_mode: ODVInput[str] = DEFAULT_NONE,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
+    ) -> Tuple["Message", ...]:
         """Shortcut for::
 
              await bot.send_media_group(update.effective_message.chat_id, *args, **kwargs)
@@ -1025,7 +1316,7 @@ class Message(TelegramObject):
                 chats.
 
         Returns:
-            List[:class:`telegram.Message`]: An array of the sent Messages.
+            Tuple[:class:`telegram.Message`]: An array of the sent Messages.
 
         Raises:
             :class:`telegram.error.TelegramError`
@@ -1043,27 +1334,33 @@ class Message(TelegramObject):
             api_kwargs=api_kwargs,
             allow_sending_without_reply=allow_sending_without_reply,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
+            caption=caption,
+            parse_mode=parse_mode,
+            caption_entities=caption_entities,
         )
 
     async def reply_photo(
         self,
         photo: Union[FileInput, "PhotoSize"],
-        caption: str = None,
+        caption: Optional[str] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        caption_entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
+        has_spoiler: Optional[bool] = None,
         *,
-        filename: str = None,
-        quote: bool = None,
+        filename: Optional[str] = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = 20,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -1093,36 +1390,40 @@ class Message(TelegramObject):
             caption_entities=caption_entities,
             filename=filename,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
             read_timeout=read_timeout,
             write_timeout=write_timeout,
             connect_timeout=connect_timeout,
             pool_timeout=pool_timeout,
             api_kwargs=api_kwargs,
+            has_spoiler=has_spoiler,
         )
 
     async def reply_audio(
         self,
         audio: Union[FileInput, "Audio"],
-        duration: int = None,
-        performer: str = None,
-        title: str = None,
-        caption: str = None,
+        duration: Optional[int] = None,
+        performer: Optional[str] = None,
+        title: Optional[str] = None,
+        caption: Optional[str] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
-        thumb: FileInput = None,
+        thumb: Optional[FileInput] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        caption_entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
+        thumbnail: Optional[FileInput] = None,
         *,
-        filename: str = None,
-        quote: bool = None,
+        filename: Optional[str] = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = 20,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -1156,34 +1457,38 @@ class Message(TelegramObject):
             caption_entities=caption_entities,
             filename=filename,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
             read_timeout=read_timeout,
             write_timeout=write_timeout,
             connect_timeout=connect_timeout,
             pool_timeout=pool_timeout,
             api_kwargs=api_kwargs,
+            thumbnail=thumbnail,
         )
 
     async def reply_document(
         self,
         document: Union[FileInput, "Document"],
-        caption: str = None,
+        caption: Optional[str] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
-        thumb: FileInput = None,
-        disable_content_type_detection: bool = None,
+        thumb: Optional[FileInput] = None,
+        disable_content_type_detection: Optional[bool] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        caption_entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
+        thumbnail: Optional[FileInput] = None,
         *,
-        filename: str = None,
-        quote: bool = None,
+        filename: Optional[str] = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = 20,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -1220,31 +1525,36 @@ class Message(TelegramObject):
             allow_sending_without_reply=allow_sending_without_reply,
             caption_entities=caption_entities,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
+            thumbnail=thumbnail,
         )
 
     async def reply_animation(
         self,
         animation: Union[FileInput, "Animation"],
-        duration: int = None,
-        width: int = None,
-        height: int = None,
-        thumb: FileInput = None,
-        caption: str = None,
+        duration: Optional[int] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
+        thumb: Optional[FileInput] = None,
+        caption: Optional[str] = None,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        caption_entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
+        has_spoiler: Optional[bool] = None,
+        thumbnail: Optional[FileInput] = None,
         *,
-        filename: str = None,
-        quote: bool = None,
+        filename: Optional[str] = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = 20,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -1284,23 +1594,28 @@ class Message(TelegramObject):
             caption_entities=caption_entities,
             filename=filename,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
+            has_spoiler=has_spoiler,
+            thumbnail=thumbnail,
         )
 
     async def reply_sticker(
         self,
         sticker: Union[FileInput, "Sticker"],
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
+        emoji: Optional[str] = None,
         *,
-        quote: bool = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = 20,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -1331,32 +1646,37 @@ class Message(TelegramObject):
             api_kwargs=api_kwargs,
             allow_sending_without_reply=allow_sending_without_reply,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
+            emoji=emoji,
         )
 
     async def reply_video(
         self,
         video: Union[FileInput, "Video"],
-        duration: int = None,
-        caption: str = None,
+        duration: Optional[int] = None,
+        caption: Optional[str] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
-        width: int = None,
-        height: int = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
-        supports_streaming: bool = None,
-        thumb: FileInput = None,
+        supports_streaming: Optional[bool] = None,
+        thumb: Optional[FileInput] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        caption_entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
+        has_spoiler: Optional[bool] = None,
+        thumbnail: Optional[FileInput] = None,
         *,
-        filename: str = None,
-        quote: bool = None,
+        filename: Optional[str] = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = 20,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -1396,27 +1716,32 @@ class Message(TelegramObject):
             caption_entities=caption_entities,
             filename=filename,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
+            has_spoiler=has_spoiler,
+            thumbnail=thumbnail,
         )
 
     async def reply_video_note(
         self,
         video_note: Union[FileInput, "VideoNote"],
-        duration: int = None,
-        length: int = None,
+        duration: Optional[int] = None,
+        length: Optional[int] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
-        thumb: FileInput = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
+        thumb: Optional[FileInput] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
+        thumbnail: Optional[FileInput] = None,
         *,
-        filename: str = None,
-        quote: bool = None,
+        filename: Optional[str] = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = 20,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -1452,28 +1777,31 @@ class Message(TelegramObject):
             allow_sending_without_reply=allow_sending_without_reply,
             filename=filename,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
+            thumbnail=thumbnail,
         )
 
     async def reply_voice(
         self,
         voice: Union[FileInput, "Voice"],
-        duration: int = None,
-        caption: str = None,
+        duration: Optional[int] = None,
+        caption: Optional[str] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        caption_entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
-        filename: str = None,
-        quote: bool = None,
+        filename: Optional[str] = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = 20,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -1510,29 +1838,31 @@ class Message(TelegramObject):
             caption_entities=caption_entities,
             filename=filename,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def reply_location(
         self,
-        latitude: float = None,
-        longitude: float = None,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
-        live_period: int = None,
-        horizontal_accuracy: float = None,
-        heading: int = None,
-        proximity_alert_radius: int = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
+        live_period: Optional[int] = None,
+        horizontal_accuracy: Optional[float] = None,
+        heading: Optional[int] = None,
+        proximity_alert_radius: Optional[int] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
-        location: Location = None,
-        quote: bool = None,
+        location: Optional[Location] = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -1569,31 +1899,33 @@ class Message(TelegramObject):
             proximity_alert_radius=proximity_alert_radius,
             allow_sending_without_reply=allow_sending_without_reply,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def reply_venue(
         self,
-        latitude: float = None,
-        longitude: float = None,
-        title: str = None,
-        address: str = None,
-        foursquare_id: str = None,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None,
+        title: Optional[str] = None,
+        address: Optional[str] = None,
+        foursquare_id: Optional[str] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
-        foursquare_type: str = None,
-        google_place_id: str = None,
-        google_place_type: str = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
+        foursquare_type: Optional[str] = None,
+        google_place_id: Optional[str] = None,
+        google_place_type: Optional[str] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
-        venue: Venue = None,
-        quote: bool = None,
+        venue: Optional[Venue] = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -1632,27 +1964,29 @@ class Message(TelegramObject):
             google_place_type=google_place_type,
             allow_sending_without_reply=allow_sending_without_reply,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def reply_contact(
         self,
-        phone_number: str = None,
-        first_name: str = None,
-        last_name: str = None,
+        phone_number: Optional[str] = None,
+        first_name: Optional[str] = None,
+        last_name: Optional[str] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
-        vcard: str = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
+        vcard: Optional[str] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
-        contact: Contact = None,
-        quote: bool = None,
+        contact: Optional[Contact] = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -1687,34 +2021,36 @@ class Message(TelegramObject):
             api_kwargs=api_kwargs,
             allow_sending_without_reply=allow_sending_without_reply,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def reply_poll(
         self,
         question: str,
-        options: List[str],
-        is_anonymous: bool = None,
-        type: str = None,  # pylint: disable=redefined-builtin
-        allows_multiple_answers: bool = None,
-        correct_option_id: int = None,
-        is_closed: bool = None,
+        options: Sequence[str],
+        is_anonymous: Optional[bool] = None,
+        type: Optional[str] = None,  # pylint: disable=redefined-builtin
+        allows_multiple_answers: Optional[bool] = None,
+        correct_option_id: Optional[CorrectOptionID] = None,
+        is_closed: Optional[bool] = None,
         disable_notification: ODVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
-        explanation: str = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
+        explanation: Optional[str] = None,
         explanation_parse_mode: ODVInput[str] = DEFAULT_NONE,
-        open_period: int = None,
-        close_date: Union[int, datetime.datetime] = None,
+        open_period: Optional[int] = None,
+        close_date: Optional[Union[int, datetime.datetime]] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        explanation_entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        explanation_entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
-        quote: bool = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -1756,23 +2092,25 @@ class Message(TelegramObject):
             allow_sending_without_reply=allow_sending_without_reply,
             explanation_entities=explanation_entities,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def reply_dice(
         self,
         disable_notification: ODVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
-        emoji: str = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
+        emoji: Optional[str] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
-        quote: bool = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -1803,17 +2141,19 @@ class Message(TelegramObject):
             api_kwargs=api_kwargs,
             allow_sending_without_reply=allow_sending_without_reply,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def reply_chat_action(
         self,
         action: str,
+        message_thread_id: Optional[int] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> bool:
         """Shortcut for::
 
@@ -1829,6 +2169,7 @@ class Message(TelegramObject):
         """
         return await self.get_bot().send_chat_action(
             chat_id=self.chat_id,
+            message_thread_id=message_thread_id,
             action=action,
             read_timeout=read_timeout,
             write_timeout=write_timeout,
@@ -1841,17 +2182,18 @@ class Message(TelegramObject):
         self,
         game_short_name: str,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: "InlineKeyboardMarkup" = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional["InlineKeyboardMarkup"] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
-        quote: bool = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -1884,6 +2226,7 @@ class Message(TelegramObject):
             api_kwargs=api_kwargs,
             allow_sending_without_reply=allow_sending_without_reply,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def reply_invoice(
@@ -1893,34 +2236,35 @@ class Message(TelegramObject):
         payload: str,
         provider_token: str,
         currency: str,
-        prices: List["LabeledPrice"],
-        start_parameter: str = None,
-        photo_url: str = None,
-        photo_size: int = None,
-        photo_width: int = None,
-        photo_height: int = None,
-        need_name: bool = None,
-        need_phone_number: bool = None,
-        need_email: bool = None,
-        need_shipping_address: bool = None,
-        is_flexible: bool = None,
+        prices: Sequence["LabeledPrice"],
+        start_parameter: Optional[str] = None,
+        photo_url: Optional[str] = None,
+        photo_size: Optional[int] = None,
+        photo_width: Optional[int] = None,
+        photo_height: Optional[int] = None,
+        need_name: Optional[bool] = None,
+        need_phone_number: Optional[bool] = None,
+        need_email: Optional[bool] = None,
+        need_shipping_address: Optional[bool] = None,
+        is_flexible: Optional[bool] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: "InlineKeyboardMarkup" = None,
-        provider_data: Union[str, object] = None,
-        send_phone_number_to_provider: bool = None,
-        send_email_to_provider: bool = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional["InlineKeyboardMarkup"] = None,
+        provider_data: Optional[Union[str, object]] = None,
+        send_phone_number_to_provider: Optional[bool] = None,
+        send_email_to_provider: Optional[bool] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        max_tip_amount: int = None,
-        suggested_tip_amounts: List[int] = None,
+        max_tip_amount: Optional[int] = None,
+        suggested_tip_amounts: Optional[Sequence[int]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
-        quote: bool = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -1983,6 +2327,7 @@ class Message(TelegramObject):
             max_tip_amount=max_tip_amount,
             suggested_tip_amounts=suggested_tip_amounts,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def forward(
@@ -1990,12 +2335,13 @@ class Message(TelegramObject):
         chat_id: Union[int, str],
         disable_notification: DVInput[bool] = DEFAULT_NONE,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -2026,6 +2372,7 @@ class Message(TelegramObject):
             message_id=self.message_id,
             disable_notification=disable_notification,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
             read_timeout=read_timeout,
             write_timeout=write_timeout,
             connect_timeout=connect_timeout,
@@ -2036,20 +2383,21 @@ class Message(TelegramObject):
     async def copy(
         self,
         chat_id: Union[int, str],
-        caption: str = None,
+        caption: Optional[str] = None,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
-        caption_entities: Union[Tuple["MessageEntity", ...], List["MessageEntity"]] = None,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
+        reply_to_message_id: Optional[int] = None,
         allow_sending_without_reply: DVInput[bool] = DEFAULT_NONE,
-        reply_markup: ReplyMarkup = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "MessageId":
         """Shortcut for::
 
@@ -2084,27 +2432,29 @@ class Message(TelegramObject):
             pool_timeout=pool_timeout,
             api_kwargs=api_kwargs,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def reply_copy(
         self,
         from_chat_id: Union[str, int],
         message_id: int,
-        caption: str = None,
+        caption: Optional[str] = None,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
-        caption_entities: Union[Tuple["MessageEntity", ...], List["MessageEntity"]] = None,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
+        reply_to_message_id: Optional[int] = None,
         allow_sending_without_reply: DVInput[bool] = DEFAULT_NONE,
-        reply_markup: ReplyMarkup = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
-        quote: bool = None,
+        quote: Optional[bool] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "MessageId":
         """Shortcut for::
 
@@ -2146,6 +2496,7 @@ class Message(TelegramObject):
             pool_timeout=pool_timeout,
             api_kwargs=api_kwargs,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def edit_text(
@@ -2153,14 +2504,14 @@ class Message(TelegramObject):
         text: str,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
         disable_web_page_preview: ODVInput[bool] = DEFAULT_NONE,
-        reply_markup: InlineKeyboardMarkup = None,
-        entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        reply_markup: Optional[InlineKeyboardMarkup] = None,
+        entities: Optional[Sequence["MessageEntity"]] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> Union["Message", bool]:
         """Shortcut for::
 
@@ -2198,16 +2549,16 @@ class Message(TelegramObject):
 
     async def edit_caption(
         self,
-        caption: str = None,
-        reply_markup: InlineKeyboardMarkup = None,
+        caption: Optional[str] = None,
+        reply_markup: Optional[InlineKeyboardMarkup] = None,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
-        caption_entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> Union["Message", bool]:
         """Shortcut for::
 
@@ -2246,13 +2597,13 @@ class Message(TelegramObject):
     async def edit_media(
         self,
         media: "InputMedia",
-        reply_markup: InlineKeyboardMarkup = None,
+        reply_markup: Optional[InlineKeyboardMarkup] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> Union["Message", bool]:
         """Shortcut for::
 
@@ -2294,7 +2645,7 @@ class Message(TelegramObject):
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> Union["Message", bool]:
         """Shortcut for::
 
@@ -2328,19 +2679,19 @@ class Message(TelegramObject):
 
     async def edit_live_location(
         self,
-        latitude: float = None,
-        longitude: float = None,
-        reply_markup: InlineKeyboardMarkup = None,
-        horizontal_accuracy: float = None,
-        heading: int = None,
-        proximity_alert_radius: int = None,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None,
+        reply_markup: Optional[InlineKeyboardMarkup] = None,
+        horizontal_accuracy: Optional[float] = None,
+        heading: Optional[int] = None,
+        proximity_alert_radius: Optional[int] = None,
         *,
-        location: Location = None,
+        location: Optional[Location] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> Union["Message", bool]:
         """Shortcut for::
 
@@ -2380,13 +2731,13 @@ class Message(TelegramObject):
 
     async def stop_live_location(
         self,
-        reply_markup: InlineKeyboardMarkup = None,
+        reply_markup: Optional[InlineKeyboardMarkup] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> Union["Message", bool]:
         """Shortcut for::
 
@@ -2422,14 +2773,14 @@ class Message(TelegramObject):
         self,
         user_id: Union[int, str],
         score: int,
-        force: bool = None,
-        disable_edit_message: bool = None,
+        force: Optional[bool] = None,
+        disable_edit_message: Optional[bool] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> Union["Message", bool]:
         """Shortcut for::
 
@@ -2471,8 +2822,8 @@ class Message(TelegramObject):
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
-    ) -> List["GameHighScore"]:
+        api_kwargs: Optional[JSONDict] = None,
+    ) -> Tuple["GameHighScore", ...]:
         """Shortcut for::
 
              await bot.get_game_high_scores(
@@ -2488,7 +2839,7 @@ class Message(TelegramObject):
             behaviour is undocumented and might be changed by Telegram.
 
         Returns:
-            List[:class:`telegram.GameHighScore`]
+            Tuple[:class:`telegram.GameHighScore`]
         """
         return await self.get_bot().get_game_high_scores(
             chat_id=self.chat_id,
@@ -2509,7 +2860,7 @@ class Message(TelegramObject):
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> bool:
         """Shortcut for::
 
@@ -2535,13 +2886,13 @@ class Message(TelegramObject):
 
     async def stop_poll(
         self,
-        reply_markup: InlineKeyboardMarkup = None,
+        reply_markup: Optional[InlineKeyboardMarkup] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> Poll:
         """Shortcut for::
 
@@ -2575,7 +2926,7 @@ class Message(TelegramObject):
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> bool:
         """Shortcut for::
 
@@ -2607,7 +2958,7 @@ class Message(TelegramObject):
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> bool:
         """Shortcut for::
 
@@ -2624,6 +2975,180 @@ class Message(TelegramObject):
         return await self.get_bot().unpin_chat_message(
             chat_id=self.chat_id,
             message_id=self.message_id,
+            read_timeout=read_timeout,
+            write_timeout=write_timeout,
+            connect_timeout=connect_timeout,
+            pool_timeout=pool_timeout,
+            api_kwargs=api_kwargs,
+        )
+
+    async def edit_forum_topic(
+        self,
+        name: Optional[str] = None,
+        icon_custom_emoji_id: Optional[str] = None,
+        *,
+        read_timeout: ODVInput[float] = DEFAULT_NONE,
+        write_timeout: ODVInput[float] = DEFAULT_NONE,
+        connect_timeout: ODVInput[float] = DEFAULT_NONE,
+        pool_timeout: ODVInput[float] = DEFAULT_NONE,
+        api_kwargs: Optional[JSONDict] = None,
+    ) -> bool:
+        """Shortcut for::
+
+             await bot.edit_forum_topic(
+                chat_id=message.chat_id, message_thread_id=message.message_thread_id, *args,
+                **kwargs
+             )
+
+        For the documentation of the arguments, please see
+        :meth:`telegram.Bot.edit_forum_topic`.
+
+        .. versionadded:: 20.0
+
+        Returns:
+            :obj:`bool`: On success, :obj:`True` is returned.
+        """
+        return await self.get_bot().edit_forum_topic(
+            chat_id=self.chat_id,
+            message_thread_id=self.message_thread_id,
+            name=name,
+            icon_custom_emoji_id=icon_custom_emoji_id,
+            read_timeout=read_timeout,
+            write_timeout=write_timeout,
+            connect_timeout=connect_timeout,
+            pool_timeout=pool_timeout,
+            api_kwargs=api_kwargs,
+        )
+
+    async def close_forum_topic(
+        self,
+        *,
+        read_timeout: ODVInput[float] = DEFAULT_NONE,
+        write_timeout: ODVInput[float] = DEFAULT_NONE,
+        connect_timeout: ODVInput[float] = DEFAULT_NONE,
+        pool_timeout: ODVInput[float] = DEFAULT_NONE,
+        api_kwargs: Optional[JSONDict] = None,
+    ) -> bool:
+        """Shortcut for::
+
+             await bot.close_forum_topic(
+                chat_id=message.chat_id, message_thread_id=message.message_thread_id, *args,
+                **kwargs
+             )
+
+        For the documentation of the arguments, please see
+        :meth:`telegram.Bot.close_forum_topic`.
+
+        .. versionadded:: 20.0
+
+        Returns:
+            :obj:`bool`: On success, :obj:`True` is returned.
+        """
+        return await self.get_bot().close_forum_topic(
+            chat_id=self.chat_id,
+            message_thread_id=self.message_thread_id,
+            read_timeout=read_timeout,
+            write_timeout=write_timeout,
+            connect_timeout=connect_timeout,
+            pool_timeout=pool_timeout,
+            api_kwargs=api_kwargs,
+        )
+
+    async def reopen_forum_topic(
+        self,
+        *,
+        read_timeout: ODVInput[float] = DEFAULT_NONE,
+        write_timeout: ODVInput[float] = DEFAULT_NONE,
+        connect_timeout: ODVInput[float] = DEFAULT_NONE,
+        pool_timeout: ODVInput[float] = DEFAULT_NONE,
+        api_kwargs: Optional[JSONDict] = None,
+    ) -> bool:
+        """Shortcut for::
+
+            await bot.reopen_forum_topic(
+                chat_id=message.chat_id, message_thread_id=message.message_thread_id, *args,
+                **kwargs
+             )
+
+        For the documentation of the arguments, please see
+        :meth:`telegram.Bot.reopen_forum_topic`.
+
+        .. versionadded:: 20.0
+
+        Returns:
+            :obj:`bool`: On success, :obj:`True` is returned.
+        """
+        return await self.get_bot().reopen_forum_topic(
+            chat_id=self.chat_id,
+            message_thread_id=self.message_thread_id,
+            read_timeout=read_timeout,
+            write_timeout=write_timeout,
+            connect_timeout=connect_timeout,
+            pool_timeout=pool_timeout,
+            api_kwargs=api_kwargs,
+        )
+
+    async def delete_forum_topic(
+        self,
+        *,
+        read_timeout: ODVInput[float] = DEFAULT_NONE,
+        write_timeout: ODVInput[float] = DEFAULT_NONE,
+        connect_timeout: ODVInput[float] = DEFAULT_NONE,
+        pool_timeout: ODVInput[float] = DEFAULT_NONE,
+        api_kwargs: Optional[JSONDict] = None,
+    ) -> bool:
+        """Shortcut for::
+
+             await bot.delete_forum_topic(
+                chat_id=message.chat_id, message_thread_id=message.message_thread_id, *args,
+                **kwargs
+             )
+
+        For the documentation of the arguments, please see
+        :meth:`telegram.Bot.delete_forum_topic`.
+
+        .. versionadded:: 20.0
+
+        Returns:
+            :obj:`bool`: On success, :obj:`True` is returned.
+        """
+        return await self.get_bot().delete_forum_topic(
+            chat_id=self.chat_id,
+            message_thread_id=self.message_thread_id,
+            read_timeout=read_timeout,
+            write_timeout=write_timeout,
+            connect_timeout=connect_timeout,
+            pool_timeout=pool_timeout,
+            api_kwargs=api_kwargs,
+        )
+
+    async def unpin_all_forum_topic_messages(
+        self,
+        *,
+        read_timeout: ODVInput[float] = DEFAULT_NONE,
+        write_timeout: ODVInput[float] = DEFAULT_NONE,
+        connect_timeout: ODVInput[float] = DEFAULT_NONE,
+        pool_timeout: ODVInput[float] = DEFAULT_NONE,
+        api_kwargs: Optional[JSONDict] = None,
+    ) -> bool:
+        """Shortcut for::
+
+             await bot.unpin_all_forum_topic_messages(
+                chat_id=message.chat_id, message_thread_id=message.message_thread_id, *args,
+                **kwargs
+             )
+
+        For the documentation of the arguments, please see
+        :meth:`telegram.Bot.unpin_all_forum_topic_messages`.
+
+        .. versionadded:: 20.0
+
+        Returns:
+            :obj:`bool`: On success, :obj:`True` is returned.
+        """
+        return await self.get_bot().unpin_all_forum_topic_messages(
+            chat_id=self.chat_id,
+            message_thread_id=self.message_thread_id,
             read_timeout=read_timeout,
             write_timeout=write_timeout,
             connect_timeout=connect_timeout,
@@ -2653,10 +3178,6 @@ class Message(TelegramObject):
         if not self.text:
             raise RuntimeError("This Message has no 'text'.")
 
-        # Is it a narrow build, if so we don't need to convert
-        if sys.maxunicode == 0xFFFF:
-            return self.text[entity.offset : entity.offset + entity.length]
-
         entity_text = self.text.encode("utf-16-le")
         entity_text = entity_text[entity.offset * 2 : (entity.offset + entity.length) * 2]
         return entity_text.decode("utf-16-le")
@@ -2683,15 +3204,11 @@ class Message(TelegramObject):
         if not self.caption:
             raise RuntimeError("This Message has no 'caption'.")
 
-        # Is it a narrow build, if so we don't need to convert
-        if sys.maxunicode == 0xFFFF:
-            return self.caption[entity.offset : entity.offset + entity.length]
-
         entity_text = self.caption.encode("utf-16-le")
         entity_text = entity_text[entity.offset * 2 : (entity.offset + entity.length) * 2]
         return entity_text.decode("utf-16-le")
 
-    def parse_entities(self, types: List[str] = None) -> Dict[MessageEntity, str]:
+    def parse_entities(self, types: Optional[List[str]] = None) -> Dict[MessageEntity, str]:
         """
         Returns a :obj:`dict` that maps :class:`telegram.MessageEntity` to :obj:`str`.
         It contains entities from this message filtered by their
@@ -2721,7 +3238,9 @@ class Message(TelegramObject):
             entity: self.parse_entity(entity) for entity in self.entities if entity.type in types
         }
 
-    def parse_caption_entities(self, types: List[str] = None) -> Dict[MessageEntity, str]:
+    def parse_caption_entities(
+        self, types: Optional[List[str]] = None
+    ) -> Dict[MessageEntity, str]:
         """
         Returns a :obj:`dict` that maps :class:`telegram.MessageEntity` to :obj:`str`.
         It contains entities from this message's caption filtered by their
@@ -2763,16 +3282,15 @@ class Message(TelegramObject):
         if message_text is None:
             return None
 
-        if sys.maxunicode != 0xFFFF:
-            message_text = message_text.encode("utf-16-le")  # type: ignore
+        message_text = message_text.encode("utf-16-le")  # type: ignore
 
         html_text = ""
         last_offset = 0
 
-        sorted_entities = sorted(entities.items(), key=(lambda item: item[0].offset))
+        sorted_entities = sorted(entities.items(), key=lambda item: item[0].offset)
         parsed_entities = []
 
-        for (entity, text) in sorted_entities:
+        for entity, text in sorted_entities:
             if entity not in parsed_entities:
                 nested_entities = {
                     e: t
@@ -2784,78 +3302,70 @@ class Message(TelegramObject):
                 parsed_entities.extend(list(nested_entities.keys()))
 
                 orig_text = text
-                text = escape(text)
+                escaped_text = escape(text)
 
                 if nested_entities:
-                    text = Message._parse_html(
+                    escaped_text = Message._parse_html(
                         orig_text, nested_entities, urled=urled, offset=entity.offset
                     )
 
                 if entity.type == MessageEntity.TEXT_LINK:
-                    insert = f'<a href="{entity.url}">{text}</a>'
+                    insert = f'<a href="{entity.url}">{escaped_text}</a>'
                 elif entity.type == MessageEntity.TEXT_MENTION and entity.user:
-                    insert = f'<a href="tg://user?id={entity.user.id}">{text}</a>'
+                    insert = f'<a href="tg://user?id={entity.user.id}">{escaped_text}</a>'
                 elif entity.type == MessageEntity.URL and urled:
-                    insert = f'<a href="{text}">{text}</a>'
+                    insert = f'<a href="{escaped_text}">{escaped_text}</a>'
                 elif entity.type == MessageEntity.BOLD:
-                    insert = f"<b>{text}</b>"
+                    insert = f"<b>{escaped_text}</b>"
                 elif entity.type == MessageEntity.ITALIC:
-                    insert = f"<i>{text}</i>"
+                    insert = f"<i>{escaped_text}</i>"
                 elif entity.type == MessageEntity.CODE:
-                    insert = f"<code>{text}</code>"
+                    insert = f"<code>{escaped_text}</code>"
                 elif entity.type == MessageEntity.PRE:
                     if entity.language:
-                        insert = f'<pre><code class="{entity.language}">{text}</code></pre>'
+                        insert = (
+                            f'<pre><code class="{entity.language}">{escaped_text}</code></pre>'
+                        )
                     else:
-                        insert = f"<pre>{text}</pre>"
+                        insert = f"<pre>{escaped_text}</pre>"
                 elif entity.type == MessageEntity.UNDERLINE:
-                    insert = f"<u>{text}</u>"
+                    insert = f"<u>{escaped_text}</u>"
                 elif entity.type == MessageEntity.STRIKETHROUGH:
-                    insert = f"<s>{text}</s>"
+                    insert = f"<s>{escaped_text}</s>"
                 elif entity.type == MessageEntity.SPOILER:
-                    insert = f'<span class="tg-spoiler">{text}</span>'
+                    insert = f'<span class="tg-spoiler">{escaped_text}</span>'
+                elif entity.type == MessageEntity.CUSTOM_EMOJI:
+                    insert = (
+                        f'<tg-emoji emoji-id="{entity.custom_emoji_id}">{escaped_text}</tg-emoji>'
+                    )
                 else:
-                    insert = text
+                    insert = escaped_text
 
                 if offset == 0:
-                    if sys.maxunicode == 0xFFFF:
-                        html_text += (
-                            escape(message_text[last_offset : entity.offset - offset]) + insert
-                        )
-                    else:
-                        html_text += (
-                            escape(
-                                message_text[  # type: ignore
-                                    last_offset * 2 : (entity.offset - offset) * 2
-                                ].decode("utf-16-le")
-                            )
-                            + insert
-                        )
-                else:
-                    if sys.maxunicode == 0xFFFF:
-                        html_text += message_text[last_offset : entity.offset - offset] + insert
-                    else:
-                        html_text += (
+                    html_text += (
+                        escape(
                             message_text[  # type: ignore
                                 last_offset * 2 : (entity.offset - offset) * 2
                             ].decode("utf-16-le")
-                            + insert
                         )
+                        + insert
+                    )
+                else:
+                    html_text += (
+                        message_text[  # type: ignore
+                            last_offset * 2 : (entity.offset - offset) * 2
+                        ].decode("utf-16-le")
+                        + insert
+                    )
 
                 last_offset = entity.offset - offset + entity.length
 
         if offset == 0:
-            if sys.maxunicode == 0xFFFF:
-                html_text += escape(message_text[last_offset:])
-            else:
-                html_text += escape(
-                    message_text[last_offset * 2 :].decode("utf-16-le")  # type: ignore
-                )
+            html_text += escape(
+                message_text[last_offset * 2 :].decode("utf-16-le")  # type: ignore
+            )
         else:
-            if sys.maxunicode == 0xFFFF:
-                html_text += message_text[last_offset:]
-            else:
-                html_text += message_text[last_offset * 2 :].decode("utf-16-le")  # type: ignore
+            html_text += message_text[last_offset * 2 :].decode("utf-16-le")  # type: ignore
 
         return html_text
 
@@ -2866,11 +3376,11 @@ class Message(TelegramObject):
         Use this if you want to retrieve the message text with the entities formatted as HTML in
         the same way the original message was formatted.
 
-        Note:
-            |custom_emoji_formatting_note|
-
         .. versionchanged:: 13.10
            Spoiler entities are now formatted as HTML.
+
+        .. versionchanged:: 20.3
+           Custom emoji entities are now supported.
 
         Returns:
             :obj:`str`: Message text with entities formatted as HTML.
@@ -2885,11 +3395,11 @@ class Message(TelegramObject):
         Use this if you want to retrieve the message text with the entities formatted as HTML.
         This also formats :attr:`telegram.MessageEntity.URL` as a hyperlink.
 
-        Note:
-            |custom_emoji_formatting_note|
-
         .. versionchanged:: 13.10
            Spoiler entities are now formatted as HTML.
+
+        .. versionchanged:: 20.3
+           Custom emoji entities are now supported.
 
         Returns:
             :obj:`str`: Message text with entities formatted as HTML.
@@ -2905,11 +3415,11 @@ class Message(TelegramObject):
         Use this if you want to retrieve the message caption with the caption entities formatted as
         HTML in the same way the original message was formatted.
 
-        Note:
-            |custom_emoji_formatting_note|
-
         .. versionchanged:: 13.10
            Spoiler entities are now formatted as HTML.
+
+        .. versionchanged:: 20.3
+           Custom emoji entities are now supported.
 
         Returns:
             :obj:`str`: Message caption with caption entities formatted as HTML.
@@ -2924,11 +3434,11 @@ class Message(TelegramObject):
         Use this if you want to retrieve the message caption with the caption entities formatted as
         HTML. This also formats :attr:`telegram.MessageEntity.URL` as a hyperlink.
 
-        Note:
-            |custom_emoji_formatting_note|
-
         .. versionchanged:: 13.10
            Spoiler entities are now formatted as HTML.
+
+        .. versionchanged:: 20.3
+           Custom emoji entities are now supported.
 
         Returns:
             :obj:`str`: Message caption with caption entities formatted as HTML.
@@ -2940,24 +3450,23 @@ class Message(TelegramObject):
         message_text: Optional[str],
         entities: Dict[MessageEntity, str],
         urled: bool = False,
-        version: int = 1,
+        version: MarkdownVersion = 1,
         offset: int = 0,
     ) -> Optional[str]:
-        version = int(version)
+        version = int(version)  # type: ignore
 
         if message_text is None:
             return None
 
-        if sys.maxunicode != 0xFFFF:
-            message_text = message_text.encode("utf-16-le")  # type: ignore
+        message_text = message_text.encode("utf-16-le")  # type: ignore
 
         markdown_text = ""
         last_offset = 0
 
-        sorted_entities = sorted(entities.items(), key=(lambda item: item[0].offset))
+        sorted_entities = sorted(entities.items(), key=lambda item: item[0].offset)
         parsed_entities = []
 
-        for (entity, text) in sorted_entities:
+        for entity, text in sorted_entities:
             if entity not in parsed_entities:
                 nested_entities = {
                     e: t
@@ -2968,8 +3477,7 @@ class Message(TelegramObject):
                 }
                 parsed_entities.extend(list(nested_entities.keys()))
 
-                orig_text = text
-                text = escape_markdown(text, version=version)
+                escaped_text = escape_markdown(text, version=version)
 
                 if nested_entities:
                     if version < 2:
@@ -2977,8 +3485,8 @@ class Message(TelegramObject):
                             "Nested entities are not supported for Markdown version 1"
                         )
 
-                    text = Message._parse_markdown(
-                        orig_text,
+                    escaped_text = Message._parse_markdown(
+                        text,
                         nested_entities,
                         urled=urled,
                         offset=entity.offset,
@@ -2993,105 +3501,98 @@ class Message(TelegramObject):
                         url = escape_markdown(
                             entity.url, version=version, entity_type=MessageEntity.TEXT_LINK
                         )
-                    insert = f"[{text}]({url})"
+                    insert = f"[{escaped_text}]({url})"
                 elif entity.type == MessageEntity.TEXT_MENTION and entity.user:
-                    insert = f"[{text}](tg://user?id={entity.user.id})"
+                    insert = f"[{escaped_text}](tg://user?id={entity.user.id})"
                 elif entity.type == MessageEntity.URL and urled:
-                    if version == 1:
-                        link = orig_text
-                    else:
-                        link = text
-                    insert = f"[{link}]({orig_text})"
+                    link = text if version == 1 else escaped_text
+                    insert = f"[{link}]({text})"
                 elif entity.type == MessageEntity.BOLD:
-                    insert = f"*{text}*"
+                    insert = f"*{escaped_text}*"
                 elif entity.type == MessageEntity.ITALIC:
-                    insert = f"_{text}_"
+                    insert = f"_{escaped_text}_"
                 elif entity.type == MessageEntity.CODE:
                     # Monospace needs special escaping. Also can't have entities nested within
-                    insert = f"`{escape_markdown(orig_text, version, MessageEntity.CODE)}`"
+                    insert = f"`{escape_markdown(text, version, MessageEntity.CODE)}`"
 
                 elif entity.type == MessageEntity.PRE:
                     # Monospace needs special escaping. Also can't have entities nested within
-                    code = escape_markdown(
-                        orig_text, version=version, entity_type=MessageEntity.PRE
-                    )
+                    code = escape_markdown(text, version=version, entity_type=MessageEntity.PRE)
                     if entity.language:
                         prefix = f"```{entity.language}\n"
+                    elif code.startswith("\\"):
+                        prefix = "```"
                     else:
-                        if code.startswith("\\"):
-                            prefix = "```"
-                        else:
-                            prefix = "```\n"
+                        prefix = "```\n"
                     insert = f"{prefix}{code}```"
                 elif entity.type == MessageEntity.UNDERLINE:
                     if version == 1:
                         raise ValueError(
                             "Underline entities are not supported for Markdown version 1"
                         )
-                    insert = f"__{text}__"
+                    insert = f"__{escaped_text}__"
                 elif entity.type == MessageEntity.STRIKETHROUGH:
                     if version == 1:
                         raise ValueError(
                             "Strikethrough entities are not supported for Markdown version 1"
                         )
-                    insert = f"~{text}~"
+                    insert = f"~{escaped_text}~"
                 elif entity.type == MessageEntity.SPOILER:
                     if version == 1:
                         raise ValueError(
                             "Spoiler entities are not supported for Markdown version 1"
                         )
-                    insert = f"||{text}||"
+                    insert = f"||{escaped_text}||"
+                elif entity.type == MessageEntity.CUSTOM_EMOJI:
+                    if version == 1:
+                        # this ensures compatibility to previous PTB versions
+                        insert = escaped_text
+                        warn(
+                            "Custom emoji entities are not supported for Markdown version 1. "
+                            "Future version of PTB will raise a ValueError instead of falling "
+                            "back to the alternative standard emoji.",
+                            stacklevel=3,
+                            category=PTBDeprecationWarning,
+                        )
+                    else:
+                        # This should never be needed because ids are numeric but the documentation
+                        # specifically mentions it so here we are
+                        custom_emoji_id = escape_markdown(
+                            entity.custom_emoji_id,
+                            version=version,
+                            entity_type=MessageEntity.CUSTOM_EMOJI,
+                        )
+                        insert = f"![{escaped_text}](tg://emoji?id={custom_emoji_id})"
                 else:
-                    insert = text
+                    insert = escaped_text
 
                 if offset == 0:
-                    if sys.maxunicode == 0xFFFF:
-                        markdown_text += (
-                            escape_markdown(
-                                message_text[last_offset : entity.offset - offset], version=version
-                            )
-                            + insert
-                        )
-                    else:
-                        markdown_text += (
-                            escape_markdown(
-                                message_text[  # type: ignore
-                                    last_offset * 2 : (entity.offset - offset) * 2
-                                ].decode("utf-16-le"),
-                                version=version,
-                            )
-                            + insert
-                        )
-                else:
-                    if sys.maxunicode == 0xFFFF:
-                        markdown_text += (
-                            message_text[last_offset : entity.offset - offset] + insert
-                        )
-                    else:
-                        markdown_text += (
+                    markdown_text += (
+                        escape_markdown(
                             message_text[  # type: ignore
                                 last_offset * 2 : (entity.offset - offset) * 2
-                            ].decode("utf-16-le")
-                            + insert
+                            ].decode("utf-16-le"),
+                            version=version,
                         )
+                        + insert
+                    )
+                else:
+                    markdown_text += (
+                        message_text[  # type: ignore
+                            last_offset * 2 : (entity.offset - offset) * 2
+                        ].decode("utf-16-le")
+                        + insert
+                    )
 
                 last_offset = entity.offset - offset + entity.length
 
         if offset == 0:
-            if sys.maxunicode == 0xFFFF:
-                markdown_text += escape_markdown(message_text[last_offset:], version=version)
-            else:
-                markdown_text += escape_markdown(
-                    message_text[last_offset * 2 :].decode("utf-16-le"),  # type: ignore
-                    version=version,
-                )
+            markdown_text += escape_markdown(
+                message_text[last_offset * 2 :].decode("utf-16-le"),  # type: ignore
+                version=version,
+            )
         else:
-            if sys.maxunicode == 0xFFFF:
-                markdown_text += message_text[last_offset:]
-            else:
-                markdown_text += message_text[last_offset * 2 :].decode(  # type: ignore
-                    "utf-16-le"
-                )
+            markdown_text += message_text[last_offset * 2 :].decode("utf-16-le")  # type: ignore
 
         return markdown_text
 
@@ -3104,10 +3605,14 @@ class Message(TelegramObject):
         in the same way the original message was formatted.
 
         Note:
-            :tg-const:`telegram.constants.ParseMode.MARKDOWN` is a legacy mode, retained by
-            Telegram for backward compatibility. You should use :meth:`text_markdown_v2` instead.
+            * :tg-const:`telegram.constants.ParseMode.MARKDOWN` is a legacy mode, retained by
+              Telegram for backward compatibility. You should use
+              :meth:`text_markdown_v2` instead.
 
-            |custom_emoji_formatting_note|
+            * |custom_emoji_formatting_note|
+
+        .. deprecated:: 20.3
+            |custom_emoji_md1_deprecation|
 
         Returns:
             :obj:`str`: Message text with entities formatted as Markdown.
@@ -3127,11 +3632,11 @@ class Message(TelegramObject):
         Use this if you want to retrieve the message text with the entities formatted as Markdown
         in the same way the original message was formatted.
 
-        Note:
-            |custom_emoji_formatting_note|
-
         .. versionchanged:: 13.10
            Spoiler entities are now formatted as Markdown V2.
+
+        .. versionchanged:: 20.3
+           Custom emoji entities are now supported.
 
         Returns:
             :obj:`str`: Message text with entities formatted as Markdown.
@@ -3147,11 +3652,14 @@ class Message(TelegramObject):
         This also formats :attr:`telegram.MessageEntity.URL` as a hyperlink.
 
         Note:
-            :tg-const:`telegram.constants.ParseMode.MARKDOWN` is a legacy mode, retained by
-            Telegram for backward compatibility. You should use :meth:`text_markdown_v2_urled`
-            instead.
+            * :tg-const:`telegram.constants.ParseMode.MARKDOWN` is a legacy mode, retained by
+              Telegram for backward compatibility. You should use :meth:`text_markdown_v2_urled`
+              instead.
 
-            |custom_emoji_formatting_note|
+            * |custom_emoji_formatting_note|
+
+        .. deprecated:: 20.3
+            |custom_emoji_md1_deprecation|
 
         Returns:
             :obj:`str`: Message text with entities formatted as Markdown.
@@ -3171,11 +3679,11 @@ class Message(TelegramObject):
         Use this if you want to retrieve the message text with the entities formatted as Markdown.
         This also formats :attr:`telegram.MessageEntity.URL` as a hyperlink.
 
-        Note:
-            |custom_emoji_formatting_note|
-
         .. versionchanged:: 13.10
            Spoiler entities are now formatted as Markdown V2.
+
+        .. versionchanged:: 20.3
+           Custom emoji entities are now supported.
 
         Returns:
             :obj:`str`: Message text with entities formatted as Markdown.
@@ -3191,11 +3699,14 @@ class Message(TelegramObject):
         Markdown in the same way the original message was formatted.
 
         Note:
-            :tg-const:`telegram.constants.ParseMode.MARKDOWN` is a legacy mode, retained by
-            Telegram for backward compatibility. You should use :meth:`caption_markdown_v2`
-            instead.
+            * :tg-const:`telegram.constants.ParseMode.MARKDOWN` is a legacy mode, retained by
+              Telegram for backward compatibility. You should use :meth:`caption_markdown_v2`
+              instead.
 
-            |custom_emoji_formatting_note|
+            * |custom_emoji_formatting_note|
+
+        .. deprecated:: 20.3
+            |custom_emoji_md1_deprecation|
 
         Returns:
             :obj:`str`: Message caption with caption entities formatted as Markdown.
@@ -3215,11 +3726,11 @@ class Message(TelegramObject):
         Use this if you want to retrieve the message caption with the caption entities formatted as
         Markdown in the same way the original message was formatted.
 
-        Note:
-            |custom_emoji_formatting_note|
-
         .. versionchanged:: 13.10
            Spoiler entities are now formatted as Markdown V2.
+
+        .. versionchanged:: 20.3
+           Custom emoji entities are now supported.
 
         Returns:
             :obj:`str`: Message caption with caption entities formatted as Markdown.
@@ -3237,11 +3748,14 @@ class Message(TelegramObject):
         Markdown. This also formats :attr:`telegram.MessageEntity.URL` as a hyperlink.
 
         Note:
-            :tg-const:`telegram.constants.ParseMode.MARKDOWN` is a legacy mode, retained by
-            Telegram for backward compatibility. You should use :meth:`caption_markdown_v2_urled`
-            instead.
+            * :tg-const:`telegram.constants.ParseMode.MARKDOWN` is a legacy mode, retained by
+              Telegram for backward compatibility. You should use
+              :meth:`caption_markdown_v2_urled` instead.
 
-            |custom_emoji_formatting_note|
+            * |custom_emoji_formatting_note|
+
+        .. deprecated:: 20.3
+            |custom_emoji_md1_deprecation|
 
         Returns:
             :obj:`str`: Message caption with caption entities formatted as Markdown.
@@ -3261,11 +3775,11 @@ class Message(TelegramObject):
         Use this if you want to retrieve the message caption with the caption entities formatted as
         Markdown. This also formats :attr:`telegram.MessageEntity.URL` as a hyperlink.
 
-        Note:
-            |custom_emoji_formatting_note|
-
         .. versionchanged:: 13.10
            Spoiler entities are now formatted as Markdown V2.
+
+        .. versionchanged:: 20.3
+           Custom emoji entities are now supported.
 
         Returns:
             :obj:`str`: Message caption with caption entities formatted as Markdown.

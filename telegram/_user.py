@@ -2,7 +2,7 @@
 # pylint: disable=redefined-builtin
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -19,13 +19,20 @@
 # along with this program.  If not, see [http://www.gnu.org/licenses/].
 """This module contains an object that represents a Telegram User."""
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
 
 from telegram._inline.inlinekeyboardbutton import InlineKeyboardButton
 from telegram._menubutton import MenuButton
 from telegram._telegramobject import TelegramObject
 from telegram._utils.defaultvalue import DEFAULT_NONE
-from telegram._utils.types import DVInput, FileInput, JSONDict, ODVInput, ReplyMarkup
+from telegram._utils.types import (
+    CorrectOptionID,
+    DVInput,
+    FileInput,
+    JSONDict,
+    ODVInput,
+    ReplyMarkup,
+)
 from telegram.helpers import mention_html as helpers_mention_html
 from telegram.helpers import mention_markdown as helpers_mention_markdown
 
@@ -33,7 +40,6 @@ if TYPE_CHECKING:
     from telegram import (
         Animation,
         Audio,
-        Bot,
         Contact,
         Document,
         InlineKeyboardMarkup,
@@ -63,7 +69,6 @@ class User(TelegramObject):
     considered equal, if their :attr:`id` is equal.
 
     .. versionchanged:: 20.0
-
         The following are now keyword-only arguments in Bot methods:
         ``location``, ``filename``, ``venue``, ``contact``,
         ``{read, write, connect, pool}_timeout`` ``api_kwargs``. Use a named argument for those,
@@ -72,9 +77,9 @@ class User(TelegramObject):
     Args:
         id (:obj:`int`): Unique identifier for this user or bot.
         is_bot (:obj:`bool`): :obj:`True`, if this user is a bot.
-        first_name (:obj:`str`): User's or bots first name.
-        last_name (:obj:`str`, optional): User's or bots last name.
-        username (:obj:`str`, optional): User's or bots username.
+        first_name (:obj:`str`): User's or bot's first name.
+        last_name (:obj:`str`, optional): User's or bot's last name.
+        username (:obj:`str`, optional): User's or bot's username.
         language_code (:obj:`str`, optional): IETF language tag of the user's language.
         can_join_groups (:obj:`str`, optional): :obj:`True`, if the bot can be invited to groups.
             Returned only in :attr:`telegram.Bot.get_me` requests.
@@ -82,7 +87,7 @@ class User(TelegramObject):
             disabled for the bot. Returned only in :attr:`telegram.Bot.get_me` requests.
         supports_inline_queries (:obj:`str`, optional): :obj:`True`, if the bot supports inline
             queries. Returned only in :attr:`telegram.Bot.get_me` requests.
-        bot (:class:`telegram.Bot`, optional): The Bot to use for instance methods.
+
         is_premium (:obj:`bool`, optional): :obj:`True`, if this user is a Telegram Premium user.
 
             .. versionadded:: 20.0
@@ -90,7 +95,6 @@ class User(TelegramObject):
             the bot to the attachment menu.
 
             .. versionadded:: 20.0
-
     Attributes:
         id (:obj:`int`): Unique identifier for this user or bot.
         is_bot (:obj:`bool`): :obj:`True`, if this user is a bot.
@@ -104,7 +108,6 @@ class User(TelegramObject):
             disabled for the bot. Returned only in :attr:`telegram.Bot.get_me` requests.
         supports_inline_queries (:obj:`str`): Optional. :obj:`True`, if the bot supports inline
             queries. Returned only in :attr:`telegram.Bot.get_me` requests.
-        bot (:class:`telegram.Bot`): Optional. The Bot to use for instance methods.
         is_premium (:obj:`bool`): Optional. :obj:`True`, if this user is a Telegram
             Premium user.
 
@@ -113,6 +116,9 @@ class User(TelegramObject):
             the bot to the attachment menu.
 
             .. versionadded:: 20.0
+    .. |user_chat_id_note| replace:: This shortcuts build on the assumption that :attr:`User.id`
+        coincides with the :attr:`Chat.id` of the private chat with the user. This has been the
+        case so far, but Telegram does not guarantee that this stays this way.
     """
 
     __slots__ = (
@@ -131,36 +137,38 @@ class User(TelegramObject):
 
     def __init__(
         self,
-        id: int,  # pylint: disable=invalid-name
+        id: int,
         first_name: str,
         is_bot: bool,
-        last_name: str = None,
-        username: str = None,
-        language_code: str = None,
-        can_join_groups: bool = None,
-        can_read_all_group_messages: bool = None,
-        supports_inline_queries: bool = None,
-        bot: "Bot" = None,
-        is_premium: bool = None,
-        added_to_attachment_menu: bool = None,
-        **_kwargs: Any,
+        last_name: Optional[str] = None,
+        username: Optional[str] = None,
+        language_code: Optional[str] = None,
+        can_join_groups: Optional[bool] = None,
+        can_read_all_group_messages: Optional[bool] = None,
+        supports_inline_queries: Optional[bool] = None,
+        is_premium: Optional[bool] = None,
+        added_to_attachment_menu: Optional[bool] = None,
+        *,
+        api_kwargs: Optional[JSONDict] = None,
     ):
+        super().__init__(api_kwargs=api_kwargs)
         # Required
-        self.id = id  # pylint: disable=invalid-name
-        self.first_name = first_name
-        self.is_bot = is_bot
+        self.id: int = id  # pylint: disable=invalid-name
+        self.first_name: str = first_name
+        self.is_bot: bool = is_bot
         # Optionals
-        self.last_name = last_name
-        self.username = username
-        self.language_code = language_code
-        self.can_join_groups = can_join_groups
-        self.can_read_all_group_messages = can_read_all_group_messages
-        self.supports_inline_queries = supports_inline_queries
-        self.is_premium = is_premium
-        self.added_to_attachment_menu = added_to_attachment_menu
-        self.set_bot(bot)
+        self.last_name: Optional[str] = last_name
+        self.username: Optional[str] = username
+        self.language_code: Optional[str] = language_code
+        self.can_join_groups: Optional[bool] = can_join_groups
+        self.can_read_all_group_messages: Optional[bool] = can_read_all_group_messages
+        self.supports_inline_queries: Optional[bool] = supports_inline_queries
+        self.is_premium: Optional[bool] = is_premium
+        self.added_to_attachment_menu: Optional[bool] = added_to_attachment_menu
 
         self._id_attrs = (self.id,)
+
+        self._freeze()
 
     @property
     def name(self) -> str:
@@ -191,14 +199,14 @@ class User(TelegramObject):
 
     async def get_profile_photos(
         self,
-        offset: int = None,
-        limit: int = None,
+        offset: Optional[int] = None,
+        limit: Optional[int] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> Optional["UserProfilePhotos"]:
         """Shortcut for::
 
@@ -219,7 +227,7 @@ class User(TelegramObject):
             api_kwargs=api_kwargs,
         )
 
-    def mention_markdown(self, name: str = None) -> str:
+    def mention_markdown(self, name: Optional[str] = None) -> str:
         """
         Note:
             :tg-const:`telegram.constants.ParseMode.MARKDOWN` is a legacy mode, retained by
@@ -237,7 +245,7 @@ class User(TelegramObject):
             return helpers_mention_markdown(self.id, name)
         return helpers_mention_markdown(self.id, self.full_name)
 
-    def mention_markdown_v2(self, name: str = None) -> str:
+    def mention_markdown_v2(self, name: Optional[str] = None) -> str:
         """
         Args:
             name (:obj:`str`): The name used as a link for the user. Defaults to :attr:`full_name`.
@@ -250,7 +258,7 @@ class User(TelegramObject):
             return helpers_mention_markdown(self.id, name, version=2)
         return helpers_mention_markdown(self.id, self.full_name, version=2)
 
-    def mention_html(self, name: str = None) -> str:
+    def mention_html(self, name: Optional[str] = None) -> str:
         """
         Args:
             name (:obj:`str`): The name used as a link for the user. Defaults to :attr:`full_name`.
@@ -263,7 +271,7 @@ class User(TelegramObject):
             return helpers_mention_html(self.id, name)
         return helpers_mention_html(self.id, self.full_name)
 
-    def mention_button(self, name: str = None) -> InlineKeyboardButton:
+    def mention_button(self, name: Optional[str] = None) -> InlineKeyboardButton:
         """Shortcut for::
 
             InlineKeyboardButton(text=name, url=f"tg://user?id={update.effective_user.id}")
@@ -287,13 +295,16 @@ class User(TelegramObject):
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> bool:
         """Shortcut for::
 
               await bot.pin_chat_message(chat_id=update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.pin_chat_message`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :obj:`bool`: On success, :obj:`True` is returned.
@@ -312,19 +323,22 @@ class User(TelegramObject):
 
     async def unpin_message(
         self,
-        message_id: int = None,
+        message_id: Optional[int] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> bool:
         """Shortcut for::
 
               await bot.unpin_chat_message(chat_id=update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.unpin_chat_message`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :obj:`bool`: On success, :obj:`True` is returned.
@@ -347,7 +361,7 @@ class User(TelegramObject):
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> bool:
         """Shortcut for::
 
@@ -355,6 +369,9 @@ class User(TelegramObject):
 
         For the documentation of the arguments, please see
         :meth:`telegram.Bot.unpin_all_chat_messages`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :obj:`bool`: On success, :obj:`True` is returned.
@@ -375,23 +392,27 @@ class User(TelegramObject):
         parse_mode: ODVInput[str] = DEFAULT_NONE,
         disable_web_page_preview: ODVInput[bool] = DEFAULT_NONE,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
              await bot.send_message(update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.send_message`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :class:`telegram.Message`: On success, instance representing the message posted.
@@ -408,6 +429,7 @@ class User(TelegramObject):
             allow_sending_without_reply=allow_sending_without_reply,
             entities=entities,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
             read_timeout=read_timeout,
             write_timeout=write_timeout,
             connect_timeout=connect_timeout,
@@ -418,27 +440,32 @@ class User(TelegramObject):
     async def send_photo(
         self,
         photo: Union[FileInput, "PhotoSize"],
-        caption: str = None,
+        caption: Optional[str] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        caption_entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
+        has_spoiler: Optional[bool] = None,
         *,
-        filename: str = None,
+        filename: Optional[str] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = 20,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
              await bot.send_photo(update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.send_photo`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :class:`telegram.Message`: On success, instance representing the message posted.
@@ -456,37 +483,47 @@ class User(TelegramObject):
             caption_entities=caption_entities,
             filename=filename,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
             read_timeout=read_timeout,
             write_timeout=write_timeout,
             connect_timeout=connect_timeout,
             pool_timeout=pool_timeout,
             api_kwargs=api_kwargs,
+            has_spoiler=has_spoiler,
         )
 
     async def send_media_group(
         self,
-        media: List[
+        media: Sequence[
             Union["InputMediaAudio", "InputMediaDocument", "InputMediaPhoto", "InputMediaVideo"]
         ],
         disable_notification: ODVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
+        reply_to_message_id: Optional[int] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = 20,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
-    ) -> List["Message"]:
+        api_kwargs: Optional[JSONDict] = None,
+        caption: Optional[str] = None,
+        parse_mode: ODVInput[str] = DEFAULT_NONE,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
+    ) -> Tuple["Message", ...]:
         """Shortcut for::
 
              await bot.send_media_group(update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.send_media_group`.
 
+        Note:
+            |user_chat_id_note|
+
         Returns:
-            List[:class:`telegram.Message`:] On success, instance representing the message posted.
+            Tuple[:class:`telegram.Message`:] On success, a tuple of :class:`~telegram.Message`
+            instances that were sent is returned.
 
         """
         return await self.get_bot().send_media_group(
@@ -501,36 +538,45 @@ class User(TelegramObject):
             api_kwargs=api_kwargs,
             allow_sending_without_reply=allow_sending_without_reply,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
+            caption=caption,
+            parse_mode=parse_mode,
+            caption_entities=caption_entities,
         )
 
     async def send_audio(
         self,
         audio: Union[FileInput, "Audio"],
-        duration: int = None,
-        performer: str = None,
-        title: str = None,
-        caption: str = None,
+        duration: Optional[int] = None,
+        performer: Optional[str] = None,
+        title: Optional[str] = None,
+        caption: Optional[str] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
-        thumb: FileInput = None,
+        thumb: Optional[FileInput] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        caption_entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
+        thumbnail: Optional[FileInput] = None,
         *,
-        filename: str = None,
+        filename: Optional[str] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = 20,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
              await bot.send_audio(update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.send_audio`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :class:`telegram.Message`: On success, instance representing the message posted.
@@ -552,28 +598,34 @@ class User(TelegramObject):
             caption_entities=caption_entities,
             filename=filename,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
             read_timeout=read_timeout,
             write_timeout=write_timeout,
             connect_timeout=connect_timeout,
             pool_timeout=pool_timeout,
             api_kwargs=api_kwargs,
+            thumbnail=thumbnail,
         )
 
     async def send_chat_action(
         self,
         action: str,
+        message_thread_id: Optional[int] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> bool:
         """Shortcut for::
 
              await bot.send_chat_action(update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.send_chat_action`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :obj:`True`: On success.
@@ -582,6 +634,7 @@ class User(TelegramObject):
         return await self.get_bot().send_chat_action(
             chat_id=self.id,
             action=action,
+            message_thread_id=message_thread_id,
             read_timeout=read_timeout,
             write_timeout=write_timeout,
             connect_timeout=connect_timeout,
@@ -594,28 +647,32 @@ class User(TelegramObject):
 
     async def send_contact(
         self,
-        phone_number: str = None,
-        first_name: str = None,
-        last_name: str = None,
+        phone_number: Optional[str] = None,
+        first_name: Optional[str] = None,
+        last_name: Optional[str] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
-        vcard: str = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
+        vcard: Optional[str] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
-        contact: "Contact" = None,
+        contact: Optional["Contact"] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
              await bot.send_contact(update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.send_contact`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :class:`telegram.Message`: On success, instance representing the message posted.
@@ -638,28 +695,33 @@ class User(TelegramObject):
             api_kwargs=api_kwargs,
             allow_sending_without_reply=allow_sending_without_reply,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def send_dice(
         self,
         disable_notification: ODVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
-        emoji: str = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
+        emoji: Optional[str] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
              await bot.send_dice(update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.send_dice`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :class:`telegram.Message`: On success, instance representing the message posted.
@@ -678,34 +740,40 @@ class User(TelegramObject):
             api_kwargs=api_kwargs,
             allow_sending_without_reply=allow_sending_without_reply,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def send_document(
         self,
         document: Union[FileInput, "Document"],
-        caption: str = None,
+        caption: Optional[str] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
-        thumb: FileInput = None,
-        disable_content_type_detection: bool = None,
+        thumb: Optional[FileInput] = None,
+        disable_content_type_detection: Optional[bool] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        caption_entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
+        thumbnail: Optional[FileInput] = None,
         *,
-        filename: str = None,
+        filename: Optional[str] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = 20,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
              await bot.send_document(update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.send_document`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :class:`telegram.Message`: On success, instance representing the message posted.
@@ -725,33 +793,39 @@ class User(TelegramObject):
             pool_timeout=pool_timeout,
             parse_mode=parse_mode,
             thumb=thumb,
+            thumbnail=thumbnail,
             api_kwargs=api_kwargs,
             disable_content_type_detection=disable_content_type_detection,
             allow_sending_without_reply=allow_sending_without_reply,
             caption_entities=caption_entities,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def send_game(
         self,
         game_short_name: str,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: "InlineKeyboardMarkup" = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional["InlineKeyboardMarkup"] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
              await bot.send_game(update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.send_game`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :class:`telegram.Message`: On success, instance representing the message posted.
@@ -770,6 +844,7 @@ class User(TelegramObject):
             api_kwargs=api_kwargs,
             allow_sending_without_reply=allow_sending_without_reply,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def send_invoice(
@@ -779,33 +854,34 @@ class User(TelegramObject):
         payload: str,
         provider_token: str,
         currency: str,
-        prices: List["LabeledPrice"],
-        start_parameter: str = None,
-        photo_url: str = None,
-        photo_size: int = None,
-        photo_width: int = None,
-        photo_height: int = None,
-        need_name: bool = None,
-        need_phone_number: bool = None,
-        need_email: bool = None,
-        need_shipping_address: bool = None,
-        is_flexible: bool = None,
+        prices: Sequence["LabeledPrice"],
+        start_parameter: Optional[str] = None,
+        photo_url: Optional[str] = None,
+        photo_size: Optional[int] = None,
+        photo_width: Optional[int] = None,
+        photo_height: Optional[int] = None,
+        need_name: Optional[bool] = None,
+        need_phone_number: Optional[bool] = None,
+        need_email: Optional[bool] = None,
+        need_shipping_address: Optional[bool] = None,
+        is_flexible: Optional[bool] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: "InlineKeyboardMarkup" = None,
-        provider_data: Union[str, object] = None,
-        send_phone_number_to_provider: bool = None,
-        send_email_to_provider: bool = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional["InlineKeyboardMarkup"] = None,
+        provider_data: Optional[Union[str, object]] = None,
+        send_phone_number_to_provider: Optional[bool] = None,
+        send_email_to_provider: Optional[bool] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        max_tip_amount: int = None,
-        suggested_tip_amounts: List[int] = None,
+        max_tip_amount: Optional[int] = None,
+        suggested_tip_amounts: Optional[Sequence[int]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
@@ -818,6 +894,9 @@ class User(TelegramObject):
             is an optional argument and therefore the
             order of the arguments had to be changed. Use keyword arguments to make sure that the
             arguments are passed correctly.
+
+        Note:
+            |user_chat_id_note|
 
         .. versionchanged:: 13.5
             As of Bot API 5.2, the parameter
@@ -860,34 +939,39 @@ class User(TelegramObject):
             max_tip_amount=max_tip_amount,
             suggested_tip_amounts=suggested_tip_amounts,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def send_location(
         self,
-        latitude: float = None,
-        longitude: float = None,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
-        live_period: int = None,
-        horizontal_accuracy: float = None,
-        heading: int = None,
-        proximity_alert_radius: int = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
+        live_period: Optional[int] = None,
+        horizontal_accuracy: Optional[float] = None,
+        heading: Optional[int] = None,
+        proximity_alert_radius: Optional[int] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
-        location: "Location" = None,
+        location: Optional["Location"] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
              await bot.send_location(update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.send_location`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :class:`telegram.Message`: On success, instance representing the message posted.
@@ -912,36 +996,43 @@ class User(TelegramObject):
             proximity_alert_radius=proximity_alert_radius,
             allow_sending_without_reply=allow_sending_without_reply,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def send_animation(
         self,
         animation: Union[FileInput, "Animation"],
-        duration: int = None,
-        width: int = None,
-        height: int = None,
-        thumb: FileInput = None,
-        caption: str = None,
+        duration: Optional[int] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
+        thumb: Optional[FileInput] = None,
+        caption: Optional[str] = None,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        caption_entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
+        has_spoiler: Optional[bool] = None,
+        thumbnail: Optional[FileInput] = None,
         *,
-        filename: str = None,
+        filename: Optional[str] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = 20,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
              await bot.send_animation(update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.send_animation`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :class:`telegram.Message`: On success, instance representing the message posted.
@@ -968,28 +1059,36 @@ class User(TelegramObject):
             caption_entities=caption_entities,
             filename=filename,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
+            has_spoiler=has_spoiler,
+            thumbnail=thumbnail,
         )
 
     async def send_sticker(
         self,
         sticker: Union[FileInput, "Sticker"],
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
+        emoji: Optional[str] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = 20,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
              await bot.send_sticker(update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.send_sticker`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :class:`telegram.Message`: On success, instance representing the message posted.
@@ -1008,37 +1107,45 @@ class User(TelegramObject):
             api_kwargs=api_kwargs,
             allow_sending_without_reply=allow_sending_without_reply,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
+            emoji=emoji,
         )
 
     async def send_video(
         self,
         video: Union[FileInput, "Video"],
-        duration: int = None,
-        caption: str = None,
+        duration: Optional[int] = None,
+        caption: Optional[str] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
-        width: int = None,
-        height: int = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
-        supports_streaming: bool = None,
-        thumb: FileInput = None,
+        supports_streaming: Optional[bool] = None,
+        thumb: Optional[FileInput] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        caption_entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
+        has_spoiler: Optional[bool] = None,
+        thumbnail: Optional[FileInput] = None,
         *,
-        filename: str = None,
+        filename: Optional[str] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = 20,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
              await bot.send_video(update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.send_video`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :class:`telegram.Message`: On success, instance representing the message posted.
@@ -1061,41 +1168,48 @@ class User(TelegramObject):
             parse_mode=parse_mode,
             supports_streaming=supports_streaming,
             thumb=thumb,
+            thumbnail=thumbnail,
             api_kwargs=api_kwargs,
             allow_sending_without_reply=allow_sending_without_reply,
             caption_entities=caption_entities,
             filename=filename,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
+            has_spoiler=has_spoiler,
         )
 
     async def send_venue(
         self,
-        latitude: float = None,
-        longitude: float = None,
-        title: str = None,
-        address: str = None,
-        foursquare_id: str = None,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None,
+        title: Optional[str] = None,
+        address: Optional[str] = None,
+        foursquare_id: Optional[str] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
-        foursquare_type: str = None,
-        google_place_id: str = None,
-        google_place_type: str = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
+        foursquare_type: Optional[str] = None,
+        google_place_id: Optional[str] = None,
+        google_place_type: Optional[str] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
-        venue: "Venue" = None,
+        venue: Optional["Venue"] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
              await bot.send_venue(update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.send_venue`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :class:`telegram.Message`: On success, instance representing the message posted.
@@ -1122,32 +1236,38 @@ class User(TelegramObject):
             google_place_type=google_place_type,
             allow_sending_without_reply=allow_sending_without_reply,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def send_video_note(
         self,
         video_note: Union[FileInput, "VideoNote"],
-        duration: int = None,
-        length: int = None,
+        duration: Optional[int] = None,
+        length: Optional[int] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
-        thumb: FileInput = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
+        thumb: Optional[FileInput] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
+        thumbnail: Optional[FileInput] = None,
         *,
-        filename: str = None,
+        filename: Optional[str] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = 20,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
              await bot.send_video_note(update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.send_video_note`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :class:`telegram.Message`: On success, instance representing the message posted.
@@ -1170,33 +1290,39 @@ class User(TelegramObject):
             allow_sending_without_reply=allow_sending_without_reply,
             filename=filename,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
+            thumbnail=thumbnail,
         )
 
     async def send_voice(
         self,
         voice: Union[FileInput, "Voice"],
-        duration: int = None,
-        caption: str = None,
+        duration: Optional[int] = None,
+        caption: Optional[str] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        caption_entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
-        filename: str = None,
+        filename: Optional[str] = None,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = 20,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
              await bot.send_voice(update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.send_voice`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :class:`telegram.Message`: On success, instance representing the message posted.
@@ -1220,39 +1346,44 @@ class User(TelegramObject):
             caption_entities=caption_entities,
             filename=filename,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def send_poll(
         self,
         question: str,
-        options: List[str],
-        is_anonymous: bool = None,
-        type: str = None,
-        allows_multiple_answers: bool = None,
-        correct_option_id: int = None,
-        is_closed: bool = None,
+        options: Sequence[str],
+        is_anonymous: Optional[bool] = None,
+        type: Optional[str] = None,
+        allows_multiple_answers: Optional[bool] = None,
+        correct_option_id: Optional[CorrectOptionID] = None,
+        is_closed: Optional[bool] = None,
         disable_notification: ODVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
-        reply_markup: ReplyMarkup = None,
-        explanation: str = None,
+        reply_to_message_id: Optional[int] = None,
+        reply_markup: Optional[ReplyMarkup] = None,
+        explanation: Optional[str] = None,
         explanation_parse_mode: ODVInput[str] = DEFAULT_NONE,
-        open_period: int = None,
-        close_date: Union[int, datetime] = None,
+        open_period: Optional[int] = None,
+        close_date: Optional[Union[int, datetime]] = None,
         allow_sending_without_reply: ODVInput[bool] = DEFAULT_NONE,
-        explanation_entities: Union[List["MessageEntity"], Tuple["MessageEntity", ...]] = None,
+        explanation_entities: Optional[Sequence["MessageEntity"]] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "Message":
         """Shortcut for::
 
              await bot.send_poll(update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.send_poll`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :class:`telegram.Message`: On success, instance representing the message posted.
@@ -1282,32 +1413,37 @@ class User(TelegramObject):
             allow_sending_without_reply=allow_sending_without_reply,
             explanation_entities=explanation_entities,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def send_copy(
         self,
         from_chat_id: Union[str, int],
         message_id: int,
-        caption: str = None,
+        caption: Optional[str] = None,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
-        caption_entities: Union[Tuple["MessageEntity", ...], List["MessageEntity"]] = None,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
+        reply_to_message_id: Optional[int] = None,
         allow_sending_without_reply: DVInput[bool] = DEFAULT_NONE,
-        reply_markup: ReplyMarkup = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "MessageId":
         """Shortcut for::
 
              await bot.copy_message(chat_id=update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.copy_message`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :class:`telegram.Message`: On success, instance representing the message posted.
@@ -1330,32 +1466,37 @@ class User(TelegramObject):
             pool_timeout=pool_timeout,
             api_kwargs=api_kwargs,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def copy_message(
         self,
         chat_id: Union[int, str],
         message_id: int,
-        caption: str = None,
+        caption: Optional[str] = None,
         parse_mode: ODVInput[str] = DEFAULT_NONE,
-        caption_entities: Union[Tuple["MessageEntity", ...], List["MessageEntity"]] = None,
+        caption_entities: Optional[Sequence["MessageEntity"]] = None,
         disable_notification: DVInput[bool] = DEFAULT_NONE,
-        reply_to_message_id: int = None,
+        reply_to_message_id: Optional[int] = None,
         allow_sending_without_reply: DVInput[bool] = DEFAULT_NONE,
-        reply_markup: ReplyMarkup = None,
+        reply_markup: Optional[ReplyMarkup] = None,
         protect_content: ODVInput[bool] = DEFAULT_NONE,
+        message_thread_id: Optional[int] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> "MessageId":
         """Shortcut for::
 
              await bot.copy_message(from_chat_id=update.effective_user.id, *args, **kwargs)
 
         For the documentation of the arguments, please see :meth:`telegram.Bot.copy_message`.
+
+        Note:
+            |user_chat_id_note|
 
         Returns:
             :class:`telegram.Message`: On success, instance representing the message posted.
@@ -1378,6 +1519,7 @@ class User(TelegramObject):
             pool_timeout=pool_timeout,
             api_kwargs=api_kwargs,
             protect_content=protect_content,
+            message_thread_id=message_thread_id,
         )
 
     async def approve_join_request(
@@ -1388,7 +1530,7 @@ class User(TelegramObject):
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> bool:
         """Shortcut for::
 
@@ -1396,6 +1538,9 @@ class User(TelegramObject):
 
         For the documentation of the arguments, please see
         :meth:`telegram.Bot.approve_chat_join_request`.
+
+        Note:
+            |user_chat_id_note|
 
         .. versionadded:: 13.8
 
@@ -1421,7 +1566,7 @@ class User(TelegramObject):
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> bool:
         """Shortcut for::
 
@@ -1429,6 +1574,9 @@ class User(TelegramObject):
 
         For the documentation of the arguments, please see
         :meth:`telegram.Bot.decline_chat_join_request`.
+
+        Note:
+            |user_chat_id_note|
 
         .. versionadded:: 13.8
 
@@ -1448,13 +1596,13 @@ class User(TelegramObject):
 
     async def set_menu_button(
         self,
-        menu_button: MenuButton = None,
+        menu_button: Optional[MenuButton] = None,
         *,
         read_timeout: ODVInput[float] = DEFAULT_NONE,
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> bool:
         """Shortcut for::
 
@@ -1464,6 +1612,9 @@ class User(TelegramObject):
         :meth:`telegram.Bot.set_chat_menu_button`.
 
         .. seealso:: :meth:`get_menu_button`
+
+        Note:
+            |user_chat_id_note|
 
         .. versionadded:: 20.0
 
@@ -1487,7 +1638,7 @@ class User(TelegramObject):
         write_timeout: ODVInput[float] = DEFAULT_NONE,
         connect_timeout: ODVInput[float] = DEFAULT_NONE,
         pool_timeout: ODVInput[float] = DEFAULT_NONE,
-        api_kwargs: JSONDict = None,
+        api_kwargs: Optional[JSONDict] = None,
     ) -> MenuButton:
         """Shortcut for::
 
@@ -1497,6 +1648,9 @@ class User(TelegramObject):
         :meth:`telegram.Bot.get_chat_menu_button`.
 
         .. seealso:: :meth:`set_menu_button`
+
+        Note:
+            |user_chat_id_note|
 
         .. versionadded:: 20.0
 

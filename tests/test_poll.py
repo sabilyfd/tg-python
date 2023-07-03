@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2022
+# Copyright (C) 2015-2023
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -20,20 +20,25 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from telegram import MessageEntity, Poll, PollAnswer, PollOption, User
-from telegram._utils.datetime import to_timestamp
+from telegram._utils.datetime import UTC, to_timestamp
 from telegram.constants import PollType
+from tests.auxil.slots import mro_slots
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def poll_option():
-    return PollOption(text=TestPollOption.text, voter_count=TestPollOption.voter_count)
+    out = PollOption(text=TestPollOptionBase.text, voter_count=TestPollOptionBase.voter_count)
+    out._unfreeze()
+    return out
 
 
-class TestPollOption:
+class TestPollOptionBase:
     text = "test option"
     voter_count = 3
 
-    def test_slot_behaviour(self, poll_option, mro_slots):
+
+class TestPollOptionWithoutRequest(TestPollOptionBase):
+    def test_slot_behaviour(self, poll_option):
         for attr in poll_option.__slots__:
             assert getattr(poll_option, attr, "err") != "err", f"got extra slot '{attr}'"
         assert len(mro_slots(poll_option)) == len(set(mro_slots(poll_option))), "duplicate slot"
@@ -41,6 +46,7 @@ class TestPollOption:
     def test_de_json(self):
         json_dict = {"text": self.text, "voter_count": self.voter_count}
         poll_option = PollOption.de_json(json_dict, None)
+        assert poll_option.api_kwargs == {}
 
         assert poll_option.text == self.text
         assert poll_option.voter_count == self.voter_count
@@ -72,18 +78,20 @@ class TestPollOption:
         assert hash(a) != hash(e)
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def poll_answer():
     return PollAnswer(
-        poll_id=TestPollAnswer.poll_id, user=TestPollAnswer.user, option_ids=TestPollAnswer.poll_id
+        TestPollAnswerBase.poll_id, TestPollAnswerBase.user, TestPollAnswerBase.poll_id
     )
 
 
-class TestPollAnswer:
+class TestPollAnswerBase:
     poll_id = "id"
     user = User(1, "", False)
     option_ids = [2]
 
+
+class TestPollAnswerWithoutRequest(TestPollAnswerBase):
     def test_de_json(self):
         json_dict = {
             "poll_id": self.poll_id,
@@ -91,10 +99,11 @@ class TestPollAnswer:
             "option_ids": self.option_ids,
         }
         poll_answer = PollAnswer.de_json(json_dict, None)
+        assert poll_answer.api_kwargs == {}
 
         assert poll_answer.poll_id == self.poll_id
         assert poll_answer.user == self.user
-        assert poll_answer.option_ids == self.option_ids
+        assert poll_answer.option_ids == tuple(self.option_ids)
 
     def test_to_dict(self, poll_answer):
         poll_answer_dict = poll_answer.to_dict()
@@ -102,7 +111,7 @@ class TestPollAnswer:
         assert isinstance(poll_answer_dict, dict)
         assert poll_answer_dict["poll_id"] == poll_answer.poll_id
         assert poll_answer_dict["user"] == poll_answer.user.to_dict()
-        assert poll_answer_dict["option_ids"] == poll_answer.option_ids
+        assert poll_answer_dict["option_ids"] == list(poll_answer.option_ids)
 
     def test_equality(self):
         a = PollAnswer(123, self.user, [2])
@@ -124,25 +133,27 @@ class TestPollAnswer:
         assert hash(a) != hash(e)
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def poll():
-    return Poll(
-        TestPoll.id_,
-        TestPoll.question,
-        TestPoll.options,
-        TestPoll.total_voter_count,
-        TestPoll.is_closed,
-        TestPoll.is_anonymous,
-        TestPoll.type,
-        TestPoll.allows_multiple_answers,
-        explanation=TestPoll.explanation,
-        explanation_entities=TestPoll.explanation_entities,
-        open_period=TestPoll.open_period,
-        close_date=TestPoll.close_date,
+    poll = Poll(
+        TestPollBase.id_,
+        TestPollBase.question,
+        TestPollBase.options,
+        TestPollBase.total_voter_count,
+        TestPollBase.is_closed,
+        TestPollBase.is_anonymous,
+        TestPollBase.type,
+        TestPollBase.allows_multiple_answers,
+        explanation=TestPollBase.explanation,
+        explanation_entities=TestPollBase.explanation_entities,
+        open_period=TestPollBase.open_period,
+        close_date=TestPollBase.close_date,
     )
+    poll._unfreeze()
+    return poll
 
 
-class TestPoll:
+class TestPollBase:
     id_ = "id"
     question = "Test?"
     options = [PollOption("test", 10), PollOption("test2", 11)]
@@ -159,6 +170,8 @@ class TestPoll:
     open_period = 42
     close_date = datetime.now(timezone.utc)
 
+
+class TestPollWithoutRequest(TestPollBase):
     def test_de_json(self, bot):
         json_dict = {
             "id": self.id_,
@@ -175,10 +188,11 @@ class TestPoll:
             "close_date": to_timestamp(self.close_date),
         }
         poll = Poll.de_json(json_dict, bot)
+        assert poll.api_kwargs == {}
 
         assert poll.id == self.id_
         assert poll.question == self.question
-        assert poll.options == self.options
+        assert poll.options == tuple(self.options)
         assert poll.options[0].text == self.options[0].text
         assert poll.options[0].voter_count == self.options[0].voter_count
         assert poll.options[1].text == self.options[1].text
@@ -189,10 +203,40 @@ class TestPoll:
         assert poll.type == self.type
         assert poll.allows_multiple_answers == self.allows_multiple_answers
         assert poll.explanation == self.explanation
-        assert poll.explanation_entities == self.explanation_entities
+        assert poll.explanation_entities == tuple(self.explanation_entities)
         assert poll.open_period == self.open_period
         assert abs(poll.close_date - self.close_date) < timedelta(seconds=1)
         assert to_timestamp(poll.close_date) == to_timestamp(self.close_date)
+
+    def test_de_json_localization(self, tz_bot, bot, raw_bot):
+        json_dict = {
+            "id": self.id_,
+            "question": self.question,
+            "options": [o.to_dict() for o in self.options],
+            "total_voter_count": self.total_voter_count,
+            "is_closed": self.is_closed,
+            "is_anonymous": self.is_anonymous,
+            "type": self.type,
+            "allows_multiple_answers": self.allows_multiple_answers,
+            "explanation": self.explanation,
+            "explanation_entities": [self.explanation_entities[0].to_dict()],
+            "open_period": self.open_period,
+            "close_date": to_timestamp(self.close_date),
+        }
+
+        poll_raw = Poll.de_json(json_dict, raw_bot)
+        poll_bot = Poll.de_json(json_dict, bot)
+        poll_bot_tz = Poll.de_json(json_dict, tz_bot)
+
+        # comparing utcoffsets because comparing timezones is unpredicatable
+        poll_bot_tz_offset = poll_bot_tz.close_date.utcoffset()
+        tz_bot_offset = tz_bot.defaults.tzinfo.utcoffset(
+            poll_bot_tz.close_date.replace(tzinfo=None)
+        )
+
+        assert poll_raw.close_date.tzinfo == UTC
+        assert poll_bot.close_date.tzinfo == UTC
+        assert poll_bot_tz_offset == tz_bot_offset
 
     def test_to_dict(self, poll):
         poll_dict = poll.to_dict()
@@ -210,6 +254,21 @@ class TestPoll:
         assert poll_dict["explanation_entities"] == [poll.explanation_entities[0].to_dict()]
         assert poll_dict["open_period"] == poll.open_period
         assert poll_dict["close_date"] == to_timestamp(poll.close_date)
+
+    def test_equality(self):
+        a = Poll(123, "question", ["O1", "O2"], 1, False, True, Poll.REGULAR, True)
+        b = Poll(123, "question", ["o1", "o2"], 1, True, False, Poll.REGULAR, True)
+        c = Poll(456, "question", ["o1", "o2"], 1, True, False, Poll.REGULAR, True)
+        d = PollOption("Text", 1)
+
+        assert a == b
+        assert hash(a) == hash(b)
+
+        assert a != c
+        assert hash(a) != hash(c)
+
+        assert a != d
+        assert hash(a) != hash(d)
 
     def test_enum_init(self):
         poll = Poll(
@@ -260,18 +319,3 @@ class TestPoll:
 
         assert poll.parse_explanation_entities(MessageEntity.URL) == {entity: "http://google.com"}
         assert poll.parse_explanation_entities() == {entity: "http://google.com", entity_2: "h"}
-
-    def test_equality(self):
-        a = Poll(123, "question", ["O1", "O2"], 1, False, True, Poll.REGULAR, True)
-        b = Poll(123, "question", ["o1", "o2"], 1, True, False, Poll.REGULAR, True)
-        c = Poll(456, "question", ["o1", "o2"], 1, True, False, Poll.REGULAR, True)
-        d = PollOption("Text", 1)
-
-        assert a == b
-        assert hash(a) == hash(b)
-
-        assert a != c
-        assert hash(a) != hash(c)
-
-        assert a != d
-        assert hash(a) != hash(d)

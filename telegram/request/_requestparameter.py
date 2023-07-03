@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 #  A library that provides a Python interface to the Telegram Bot API
-#  Copyright (C) 2015-2022
+#  Copyright (C) 2015-2023
 #  Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 #  This program is free software: you can redistribute it and/or modify
@@ -20,17 +20,19 @@
 import json
 from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import List, Optional, Sequence, Tuple, final
 
 from telegram._files.inputfile import InputFile
 from telegram._files.inputmedia import InputMedia
+from telegram._files.inputsticker import InputSticker
 from telegram._telegramobject import TelegramObject
 from telegram._utils.datetime import to_timestamp
 from telegram._utils.enum import StringEnum
 from telegram._utils.types import UploadFileDict
 
 
-@dataclass(repr=False, eq=False, order=False, frozen=True)
+@final
+@dataclass(repr=True, eq=False, order=False, frozen=True)
 class RequestParameter:
     """Instances of this class represent a single parameter to be sent along with a request to
     the Bot API.
@@ -124,15 +126,22 @@ class RequestParameter:
             else:
                 data.pop("media", None)
 
-            thumb = data.get("thumb", None)
-            if isinstance(thumb, InputFile):
-                if thumb.attach_uri:
-                    data["thumb"] = thumb.attach_uri
+            thumbnail = data.get("thumbnail", None)
+            if isinstance(thumbnail, InputFile):
+                if thumbnail.attach_uri:
+                    data["thumbnail"] = thumbnail.attach_uri
                 else:
-                    data.pop("thumb", None)
-                return data, [value.media, thumb]
+                    data.pop("thumbnail", None)
+                return data, [value.media, thumbnail]
 
             return data, [value.media]
+        if isinstance(value, InputSticker) and isinstance(value.sticker, InputFile):
+            # We call to_dict and change the returned dict instead of overriding
+            # value.sticker in case the same value is reused for another request
+            data = value.to_dict()
+            data["sticker"] = value.sticker.attach_uri
+            return data, [value.sticker]
+
         if isinstance(value, TelegramObject):
             # Needs to be last, because InputMedia is a subclass of TelegramObject
             return value.to_dict(), []
@@ -143,7 +152,7 @@ class RequestParameter:
         """Builds an instance of this class for a given key-value pair that represents the raw
         input as passed along from a method of :class:`telegram.Bot`.
         """
-        if isinstance(value, list):
+        if not isinstance(value, (str, bytes)) and isinstance(value, Sequence):
             param_values = []
             input_files = []
             for obj in value:
