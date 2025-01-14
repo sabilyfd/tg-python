@@ -26,7 +26,7 @@ Setting things up
 
    .. code-block:: bash
 
-      $ pip install -r requirements-all.txt
+      $ pip install -r requirements-dev-all.txt
 
 
 5. Install pre-commit hooks:
@@ -157,7 +157,7 @@ Check-list for PRs
 This checklist is a non-exhaustive reminder of things that should be done before a PR is merged, both for you as contributor and for the maintainers.
 Feel free to copy (parts of) the checklist to the PR description to remind you or the maintainers of open points or if you have questions on anything.
 
-- Added ``.. versionadded:: NEXT.VERSION``, ``.. versionchanged:: NEXT.VERSION`` or ``.. deprecated:: NEXT.VERSION`` to the docstrings for user facing changes (for methods/class descriptions, arguments and attributes)
+- Added ``.. versionadded:: NEXT.VERSION``, ``.. versionchanged:: NEXT.VERSION``, ``.. deprecated:: NEXT.VERSION`` or ``.. versionremoved:: NEXT.VERSION`` to the docstrings for user facing changes (for methods/class descriptions, arguments and attributes)
 - Created new or adapted existing unit tests
 - Documented code changes according to the `CSI standard <https://standards.mousepawmedia.com/en/stable/csi.html>`__
 - Added myself alphabetically to ``AUTHORS.rst`` (optional)
@@ -167,6 +167,7 @@ Feel free to copy (parts of) the checklist to the PR description to remind you o
 **If the PR contains API changes (otherwise, you can ignore this passage)**
 
 - Checked the Bot API specific sections of the `Stability Policy <https://docs.python-telegram-bot.org/stability_policy.html>`_
+- Created a PR to remove functionality deprecated in the previous Bot API release (`see here <https://docs.python-telegram-bot.org/en/stable/stability_policy.html#case-2>`_)
 
 -  New classes:
 
@@ -193,7 +194,7 @@ Feel free to copy (parts of) the checklist to the PR description to remind you o
    - Added or updated documentation for the changed class(es) and/or method(s)
    - Added the new method(s) to ``_extbot.py``
    - Added or updated ``bot_methods.rst``
-   - Updated the Bot API version number in all places: ``README.rst`` and ``README_RAW.rst`` (including the badge), as well as ``telegram.constants.BOT_API_VERSION_INFO``
+   - Updated the Bot API version number in all places: ``README.rst`` (including the badge) and ``telegram.constants.BOT_API_VERSION_INFO``
    - Added logic for arbitrary callback data in :class:`telegram.ext.ExtBot` for new methods that either accept a ``reply_markup`` in some form or have a return type that is/contains :class:`~telegram.Message`
 
 Documenting
@@ -209,13 +210,8 @@ doc strings don't have a separate documentation site they generate, instead, the
 
 User facing documentation
 -------------------------
-We use `sphinx`_ to generate static HTML docs. To build them, first make sure you're running Python 3.9 or above and have the required dependencies:
-
-.. code-block:: bash
-
-   $ pip install -r docs/requirements-docs.txt
-
-then run the following from the PTB root directory:
+We use `sphinx`_ to generate static HTML docs. To build them, first make sure you're running Python 3.10 or above and have the required dependencies installed as explained above.
+Then, run the following from the PTB root directory:
 
 .. code-block:: bash
 
@@ -274,27 +270,8 @@ callable we prefer that the call also uses keyword arg syntax. For example:
 This gives us the flexibility to re-order arguments and more importantly
 to add new required arguments. It's also more explicit and easier to read.
 
-Properly defining optional arguments
-------------------------------------
 
-It's always good to not initialize optional arguments at class creation,
-instead use ``**kwargs`` to get them. It's well known Telegram API can
-change without notice, in that case if a new argument is added it won't
-break the API classes. For example:
-
-.. code-block:: python
-
-    # GOOD
-    def __init__(self, id, name, last_name=None, **kwargs):
-        self.last_name = last_name
-
-
-    # BAD
-    def __init__(self, id, name, last_name=None):
-        self.last_name = last_name
-
-
-.. _`Code of Conduct`: https://www.python.org/psf/conduct/
+.. _`Code of Conduct`: https://policies.python.org/python.org/code-of-conduct/
 .. _`issue tracker`: https://github.com/python-telegram-bot/python-telegram-bot/issues
 .. _`Telegram group`: https://telegram.me/pythontelegrambotgroup
 .. _`PEP 8 Style Guide`: https://peps.python.org/pep-0008/

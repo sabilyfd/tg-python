@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2023
+# Copyright (C) 2015-2025
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -25,30 +25,29 @@ from telegram import (
     InlineQueryResultVoice,
     InputTextMessageContent,
 )
-from tests.auxil.deprecations import check_thumb_deprecation_warnings_for_args_and_attrs
 from tests.auxil.slots import mro_slots
 
 
 @pytest.fixture(scope="module")
 def inline_query_result_location():
     return InlineQueryResultLocation(
-        TestInlineQueryResultLocationBase.id_,
-        TestInlineQueryResultLocationBase.latitude,
-        TestInlineQueryResultLocationBase.longitude,
-        TestInlineQueryResultLocationBase.title,
-        live_period=TestInlineQueryResultLocationBase.live_period,
-        thumbnail_url=TestInlineQueryResultLocationBase.thumbnail_url,
-        thumbnail_width=TestInlineQueryResultLocationBase.thumbnail_width,
-        thumbnail_height=TestInlineQueryResultLocationBase.thumbnail_height,
-        input_message_content=TestInlineQueryResultLocationBase.input_message_content,
-        reply_markup=TestInlineQueryResultLocationBase.reply_markup,
-        horizontal_accuracy=TestInlineQueryResultLocationBase.horizontal_accuracy,
-        heading=TestInlineQueryResultLocationBase.heading,
-        proximity_alert_radius=TestInlineQueryResultLocationBase.proximity_alert_radius,
+        InlineQueryResultLocationTestBase.id_,
+        InlineQueryResultLocationTestBase.latitude,
+        InlineQueryResultLocationTestBase.longitude,
+        InlineQueryResultLocationTestBase.title,
+        live_period=InlineQueryResultLocationTestBase.live_period,
+        thumbnail_url=InlineQueryResultLocationTestBase.thumbnail_url,
+        thumbnail_width=InlineQueryResultLocationTestBase.thumbnail_width,
+        thumbnail_height=InlineQueryResultLocationTestBase.thumbnail_height,
+        input_message_content=InlineQueryResultLocationTestBase.input_message_content,
+        reply_markup=InlineQueryResultLocationTestBase.reply_markup,
+        horizontal_accuracy=InlineQueryResultLocationTestBase.horizontal_accuracy,
+        heading=InlineQueryResultLocationTestBase.heading,
+        proximity_alert_radius=InlineQueryResultLocationTestBase.proximity_alert_radius,
     )
 
 
-class TestInlineQueryResultLocationBase:
+class InlineQueryResultLocationTestBase:
     id_ = "id"
     type_ = "location"
     latitude = 0.0
@@ -65,7 +64,7 @@ class TestInlineQueryResultLocationBase:
     reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("reply_markup")]])
 
 
-class TestInlineQueryResultLocationWithoutRequest(TestInlineQueryResultLocationBase):
+class TestInlineQueryResultLocationWithoutRequest(InlineQueryResultLocationTestBase):
     def test_slot_behaviour(self, inline_query_result_location):
         inst = inline_query_result_location
         for attr in inst.__slots__:
@@ -90,138 +89,6 @@ class TestInlineQueryResultLocationWithoutRequest(TestInlineQueryResultLocationB
         assert inline_query_result_location.heading == self.heading
         assert inline_query_result_location.horizontal_accuracy == self.horizontal_accuracy
         assert inline_query_result_location.proximity_alert_radius == self.proximity_alert_radius
-
-    def test_thumb_url_property_deprecation_warning(self, recwarn):
-        inline_query_result_location = InlineQueryResultLocation(
-            TestInlineQueryResultLocationBase.id_,
-            TestInlineQueryResultLocationBase.latitude,
-            TestInlineQueryResultLocationBase.longitude,
-            TestInlineQueryResultLocationBase.title,
-            live_period=TestInlineQueryResultLocationBase.live_period,
-            input_message_content=TestInlineQueryResultLocationBase.input_message_content,
-            reply_markup=TestInlineQueryResultLocationBase.reply_markup,
-            horizontal_accuracy=TestInlineQueryResultLocationBase.horizontal_accuracy,
-            heading=TestInlineQueryResultLocationBase.heading,
-            proximity_alert_radius=TestInlineQueryResultLocationBase.proximity_alert_radius,
-            thumb_url=TestInlineQueryResultLocationBase.thumbnail_url,  # deprecated arg
-            thumbnail_height=TestInlineQueryResultLocationBase.thumbnail_height,
-            thumbnail_width=TestInlineQueryResultLocationBase.thumbnail_width,
-        )
-        assert inline_query_result_location.thumb_url == inline_query_result_location.thumbnail_url
-        check_thumb_deprecation_warnings_for_args_and_attrs(
-            recwarn, __file__, deprecated_name="thumb_url", new_name="thumbnail_url"
-        )
-
-    def test_thumb_height_property_deprecation_warning(self, recwarn):
-        inline_query_result_location = InlineQueryResultLocation(
-            TestInlineQueryResultLocationBase.id_,
-            TestInlineQueryResultLocationBase.latitude,
-            TestInlineQueryResultLocationBase.longitude,
-            TestInlineQueryResultLocationBase.title,
-            live_period=TestInlineQueryResultLocationBase.live_period,
-            input_message_content=TestInlineQueryResultLocationBase.input_message_content,
-            reply_markup=TestInlineQueryResultLocationBase.reply_markup,
-            horizontal_accuracy=TestInlineQueryResultLocationBase.horizontal_accuracy,
-            heading=TestInlineQueryResultLocationBase.heading,
-            proximity_alert_radius=TestInlineQueryResultLocationBase.proximity_alert_radius,
-            thumbnail_url=TestInlineQueryResultLocationBase.thumbnail_url,
-            thumb_height=TestInlineQueryResultLocationBase.thumbnail_height,  # deprecated arg
-            thumbnail_width=TestInlineQueryResultLocationBase.thumbnail_width,
-        )
-        assert (
-            inline_query_result_location.thumb_height
-            == inline_query_result_location.thumbnail_height
-        )
-        check_thumb_deprecation_warnings_for_args_and_attrs(
-            recwarn, __file__, deprecated_name="thumb_height", new_name="thumbnail_height"
-        )
-
-    def test_thumb_width_property_deprecation_warning(self, recwarn):
-        inline_query_result_location = InlineQueryResultLocation(
-            TestInlineQueryResultLocationBase.id_,
-            TestInlineQueryResultLocationBase.latitude,
-            TestInlineQueryResultLocationBase.longitude,
-            TestInlineQueryResultLocationBase.title,
-            live_period=TestInlineQueryResultLocationBase.live_period,
-            input_message_content=TestInlineQueryResultLocationBase.input_message_content,
-            reply_markup=TestInlineQueryResultLocationBase.reply_markup,
-            horizontal_accuracy=TestInlineQueryResultLocationBase.horizontal_accuracy,
-            heading=TestInlineQueryResultLocationBase.heading,
-            proximity_alert_radius=TestInlineQueryResultLocationBase.proximity_alert_radius,
-            thumbnail_url=TestInlineQueryResultLocationBase.thumbnail_url,
-            thumbnail_height=TestInlineQueryResultLocationBase.thumbnail_height,
-            thumb_width=TestInlineQueryResultLocationBase.thumbnail_width,  # deprecated arg
-        )
-        assert (
-            inline_query_result_location.thumb_width
-            == inline_query_result_location.thumbnail_width
-        )
-        check_thumb_deprecation_warnings_for_args_and_attrs(
-            recwarn, __file__, deprecated_name="thumb_width", new_name="thumbnail_width"
-        )
-
-    def test_throws_value_error_with_different_deprecated_and_new_arg_thumb_url(self):
-        with pytest.raises(
-            ValueError, match="different entities as 'thumb_url' and 'thumbnail_url'"
-        ):
-            InlineQueryResultLocation(
-                TestInlineQueryResultLocationBase.id_,
-                TestInlineQueryResultLocationBase.latitude,
-                TestInlineQueryResultLocationBase.longitude,
-                TestInlineQueryResultLocationBase.title,
-                live_period=TestInlineQueryResultLocationBase.live_period,
-                input_message_content=TestInlineQueryResultLocationBase.input_message_content,
-                reply_markup=TestInlineQueryResultLocationBase.reply_markup,
-                horizontal_accuracy=TestInlineQueryResultLocationBase.horizontal_accuracy,
-                heading=TestInlineQueryResultLocationBase.heading,
-                proximity_alert_radius=TestInlineQueryResultLocationBase.proximity_alert_radius,
-                thumbnail_url=TestInlineQueryResultLocationBase.thumbnail_url,
-                thumb_url="some other url",
-                thumbnail_height=TestInlineQueryResultLocationBase.thumbnail_height,
-                thumbnail_width=TestInlineQueryResultLocationBase.thumbnail_width,
-            )
-
-    def test_throws_value_error_with_different_deprecated_and_new_arg_thumb_height(self):
-        with pytest.raises(
-            ValueError, match="different entities as 'thumb_height' and 'thumbnail_height'"
-        ):
-            InlineQueryResultLocation(
-                TestInlineQueryResultLocationBase.id_,
-                TestInlineQueryResultLocationBase.latitude,
-                TestInlineQueryResultLocationBase.longitude,
-                TestInlineQueryResultLocationBase.title,
-                live_period=TestInlineQueryResultLocationBase.live_period,
-                input_message_content=TestInlineQueryResultLocationBase.input_message_content,
-                reply_markup=TestInlineQueryResultLocationBase.reply_markup,
-                horizontal_accuracy=TestInlineQueryResultLocationBase.horizontal_accuracy,
-                heading=TestInlineQueryResultLocationBase.heading,
-                proximity_alert_radius=TestInlineQueryResultLocationBase.proximity_alert_radius,
-                thumbnail_url=TestInlineQueryResultLocationBase.thumbnail_url,
-                thumbnail_height=TestInlineQueryResultLocationBase.thumbnail_height,
-                thumb_height=TestInlineQueryResultLocationBase.thumbnail_height + 1,
-                thumbnail_width=TestInlineQueryResultLocationBase.thumbnail_width,
-            )
-
-    def test_throws_value_error_with_different_deprecated_and_new_arg_thumb_width(self):
-        with pytest.raises(
-            ValueError, match="different entities as 'thumb_width' and 'thumbnail_width'"
-        ):
-            InlineQueryResultLocation(
-                TestInlineQueryResultLocationBase.id_,
-                TestInlineQueryResultLocationBase.latitude,
-                TestInlineQueryResultLocationBase.longitude,
-                TestInlineQueryResultLocationBase.title,
-                live_period=TestInlineQueryResultLocationBase.live_period,
-                input_message_content=TestInlineQueryResultLocationBase.input_message_content,
-                reply_markup=TestInlineQueryResultLocationBase.reply_markup,
-                horizontal_accuracy=TestInlineQueryResultLocationBase.horizontal_accuracy,
-                heading=TestInlineQueryResultLocationBase.heading,
-                proximity_alert_radius=TestInlineQueryResultLocationBase.proximity_alert_radius,
-                thumbnail_url=TestInlineQueryResultLocationBase.thumbnail_url,
-                thumbnail_height=TestInlineQueryResultLocationBase.thumbnail_height,
-                thumbnail_width=TestInlineQueryResultLocationBase.thumbnail_width,
-                thumb_width=TestInlineQueryResultLocationBase.thumbnail_width + 1,
-            )
 
     def test_to_dict(self, inline_query_result_location):
         inline_query_result_location_dict = inline_query_result_location.to_dict()
