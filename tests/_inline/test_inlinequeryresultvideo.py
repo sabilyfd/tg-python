@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2023
+# Copyright (C) 2015-2025
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -26,31 +26,31 @@ from telegram import (
     InputTextMessageContent,
     MessageEntity,
 )
-from tests.auxil.deprecations import check_thumb_deprecation_warnings_for_args_and_attrs
 from tests.auxil.slots import mro_slots
 
 
 @pytest.fixture(scope="module")
 def inline_query_result_video():
     return InlineQueryResultVideo(
-        TestInlineQueryResultVideoBase.id_,
-        TestInlineQueryResultVideoBase.video_url,
-        TestInlineQueryResultVideoBase.mime_type,
-        TestInlineQueryResultVideoBase.thumbnail_url,
-        TestInlineQueryResultVideoBase.title,
-        video_width=TestInlineQueryResultVideoBase.video_width,
-        video_height=TestInlineQueryResultVideoBase.video_height,
-        video_duration=TestInlineQueryResultVideoBase.video_duration,
-        caption=TestInlineQueryResultVideoBase.caption,
-        parse_mode=TestInlineQueryResultVideoBase.parse_mode,
-        caption_entities=TestInlineQueryResultVideoBase.caption_entities,
-        description=TestInlineQueryResultVideoBase.description,
-        input_message_content=TestInlineQueryResultVideoBase.input_message_content,
-        reply_markup=TestInlineQueryResultVideoBase.reply_markup,
+        InlineQueryResultVideoTestBase.id_,
+        InlineQueryResultVideoTestBase.video_url,
+        InlineQueryResultVideoTestBase.mime_type,
+        InlineQueryResultVideoTestBase.thumbnail_url,
+        InlineQueryResultVideoTestBase.title,
+        video_width=InlineQueryResultVideoTestBase.video_width,
+        video_height=InlineQueryResultVideoTestBase.video_height,
+        video_duration=InlineQueryResultVideoTestBase.video_duration,
+        caption=InlineQueryResultVideoTestBase.caption,
+        parse_mode=InlineQueryResultVideoTestBase.parse_mode,
+        caption_entities=InlineQueryResultVideoTestBase.caption_entities,
+        description=InlineQueryResultVideoTestBase.description,
+        input_message_content=InlineQueryResultVideoTestBase.input_message_content,
+        reply_markup=InlineQueryResultVideoTestBase.reply_markup,
+        show_caption_above_media=InlineQueryResultVideoTestBase.show_caption_above_media,
     )
 
 
-class TestInlineQueryResultVideoBase:
+class InlineQueryResultVideoTestBase:
     id_ = "id"
     type_ = "video"
     video_url = "video url"
@@ -66,9 +66,10 @@ class TestInlineQueryResultVideoBase:
     description = "description"
     input_message_content = InputTextMessageContent("input_message_content")
     reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("reply_markup")]])
+    show_caption_above_media = True
 
 
-class TestInlineQueryResultVideoWithoutRequest(TestInlineQueryResultVideoBase):
+class TestInlineQueryResultVideoWithoutRequest(InlineQueryResultVideoTestBase):
     def test_slot_behaviour(self, inline_query_result_video):
         inst = inline_query_result_video
         for attr in inst.__slots__:
@@ -94,151 +95,13 @@ class TestInlineQueryResultVideoWithoutRequest(TestInlineQueryResultVideoBase):
             == self.input_message_content.to_dict()
         )
         assert inline_query_result_video.reply_markup.to_dict() == self.reply_markup.to_dict()
+        assert inline_query_result_video.show_caption_above_media == self.show_caption_above_media
 
     def test_caption_entities_always_tuple(self):
         video = InlineQueryResultVideo(
             self.id_, self.video_url, self.mime_type, self.thumbnail_url, self.title
         )
         assert video.caption_entities == ()
-
-    def test_thumb_url_property_deprecation_warning(self, recwarn):
-        inline_query_result_video = InlineQueryResultVideo(
-            TestInlineQueryResultVideoBase.id_,
-            TestInlineQueryResultVideoBase.video_url,
-            TestInlineQueryResultVideoBase.mime_type,
-            TestInlineQueryResultVideoBase.thumbnail_url,
-            TestInlineQueryResultVideoBase.title,
-            video_width=TestInlineQueryResultVideoBase.video_width,
-            video_height=TestInlineQueryResultVideoBase.video_height,
-            video_duration=TestInlineQueryResultVideoBase.video_duration,
-            caption=TestInlineQueryResultVideoBase.caption,
-            parse_mode=TestInlineQueryResultVideoBase.parse_mode,
-            caption_entities=TestInlineQueryResultVideoBase.caption_entities,
-            description=TestInlineQueryResultVideoBase.description,
-            input_message_content=TestInlineQueryResultVideoBase.input_message_content,
-            reply_markup=TestInlineQueryResultVideoBase.reply_markup,
-            thumb_url=TestInlineQueryResultVideoBase.thumbnail_url,  # deprecated arg
-        )
-        assert inline_query_result_video.thumb_url == inline_query_result_video.thumbnail_url
-        check_thumb_deprecation_warnings_for_args_and_attrs(
-            recwarn,
-            __file__,
-            deprecated_name="thumb_url",
-            new_name="thumbnail_url",
-        )
-
-    def test_thumb_url_issues_warning_and_works_without_positional_arg(self, recwarn):
-        inline_query_result_video = InlineQueryResultVideo(
-            TestInlineQueryResultVideoBase.id_,
-            TestInlineQueryResultVideoBase.video_url,
-            TestInlineQueryResultVideoBase.mime_type,
-            # Positional argument thumbnail_url should be here, but it's not. Code works fine.
-            # If user deletes thumb_url from positional arguments and replaces it with a keyword
-            # argument while keeping `title` as a positional argument, the code will break.
-            # But it should break, given the fact that the user now passes fewer positional
-            # arguments than they are expected to.
-            title=TestInlineQueryResultVideoBase.title,
-            video_width=TestInlineQueryResultVideoBase.video_width,
-            video_height=TestInlineQueryResultVideoBase.video_height,
-            video_duration=TestInlineQueryResultVideoBase.video_duration,
-            caption=TestInlineQueryResultVideoBase.caption,
-            parse_mode=TestInlineQueryResultVideoBase.parse_mode,
-            caption_entities=TestInlineQueryResultVideoBase.caption_entities,
-            description=TestInlineQueryResultVideoBase.description,
-            input_message_content=TestInlineQueryResultVideoBase.input_message_content,
-            reply_markup=TestInlineQueryResultVideoBase.reply_markup,
-            thumb_url=TestInlineQueryResultVideoBase.thumbnail_url,  # deprecated arg
-        )
-        assert inline_query_result_video.thumb_url == inline_query_result_video.thumbnail_url
-        check_thumb_deprecation_warnings_for_args_and_attrs(
-            recwarn,
-            __file__,
-            deprecated_name="thumb_url",
-            new_name="thumbnail_url",
-        )
-
-    def test_init_throws_error_without_thumbnail_url_and_thumb_url(self):
-        with pytest.raises(ValueError, match="You must pass either"):
-            InlineQueryResultVideo(
-                TestInlineQueryResultVideoBase.id_,
-                TestInlineQueryResultVideoBase.video_url,
-                TestInlineQueryResultVideoBase.mime_type,
-                # no thumbnail_url, no thumb_url
-                # see note in previous test on `title` being keyword argument here
-                title=TestInlineQueryResultVideoBase.title,
-                video_width=TestInlineQueryResultVideoBase.video_width,
-                video_height=TestInlineQueryResultVideoBase.video_height,
-                video_duration=TestInlineQueryResultVideoBase.video_duration,
-                caption=TestInlineQueryResultVideoBase.caption,
-                parse_mode=TestInlineQueryResultVideoBase.parse_mode,
-                caption_entities=TestInlineQueryResultVideoBase.caption_entities,
-                description=TestInlineQueryResultVideoBase.description,
-                input_message_content=TestInlineQueryResultVideoBase.input_message_content,
-                reply_markup=TestInlineQueryResultVideoBase.reply_markup,
-            )
-
-    def test_throws_type_error_with_title_not_passed_or_is_none(self):
-        # this test is needed because we had to make argument title optional in declaration of
-        # __init__() while it is not optional. This had to be done to deal with renaming of
-        # thumb_url.  Hence, we have to enforce `title` being required by checking it.
-        with pytest.raises(TypeError, match="missing a required argument"):
-            InlineQueryResultVideo(
-                TestInlineQueryResultVideoBase.id_,
-                TestInlineQueryResultVideoBase.video_url,
-                TestInlineQueryResultVideoBase.mime_type,
-                TestInlineQueryResultVideoBase.thumbnail_url,
-                # title is missing
-                video_width=TestInlineQueryResultVideoBase.video_width,
-                video_height=TestInlineQueryResultVideoBase.video_height,
-                video_duration=TestInlineQueryResultVideoBase.video_duration,
-                caption=TestInlineQueryResultVideoBase.caption,
-                parse_mode=TestInlineQueryResultVideoBase.parse_mode,
-                caption_entities=TestInlineQueryResultVideoBase.caption_entities,
-                description=TestInlineQueryResultVideoBase.description,
-                input_message_content=TestInlineQueryResultVideoBase.input_message_content,
-                reply_markup=TestInlineQueryResultVideoBase.reply_markup,
-            )
-
-        with pytest.raises(TypeError, match="missing a required argument"):
-            InlineQueryResultVideo(
-                TestInlineQueryResultVideoBase.id_,
-                TestInlineQueryResultVideoBase.video_url,
-                TestInlineQueryResultVideoBase.mime_type,
-                TestInlineQueryResultVideoBase.thumbnail_url,
-                title=None,  # the declaration of __init__ allows it, but we don't.
-                video_width=TestInlineQueryResultVideoBase.video_width,
-                video_height=TestInlineQueryResultVideoBase.video_height,
-                video_duration=TestInlineQueryResultVideoBase.video_duration,
-                caption=TestInlineQueryResultVideoBase.caption,
-                parse_mode=TestInlineQueryResultVideoBase.parse_mode,
-                caption_entities=TestInlineQueryResultVideoBase.caption_entities,
-                description=TestInlineQueryResultVideoBase.description,
-                input_message_content=TestInlineQueryResultVideoBase.input_message_content,
-                reply_markup=TestInlineQueryResultVideoBase.reply_markup,
-            )
-
-    def test_throws_value_error_with_different_deprecated_and_new_arg_thumb_url(self):
-        with pytest.raises(
-            ValueError,
-            match="different entities as 'thumb_url' and 'thumbnail_url'",
-        ):
-            InlineQueryResultVideo(
-                TestInlineQueryResultVideoBase.id_,
-                TestInlineQueryResultVideoBase.video_url,
-                TestInlineQueryResultVideoBase.mime_type,
-                TestInlineQueryResultVideoBase.thumbnail_url,
-                TestInlineQueryResultVideoBase.title,
-                video_width=TestInlineQueryResultVideoBase.video_width,
-                video_height=TestInlineQueryResultVideoBase.video_height,
-                video_duration=TestInlineQueryResultVideoBase.video_duration,
-                caption=TestInlineQueryResultVideoBase.caption,
-                parse_mode=TestInlineQueryResultVideoBase.parse_mode,
-                caption_entities=TestInlineQueryResultVideoBase.caption_entities,
-                description=TestInlineQueryResultVideoBase.description,
-                input_message_content=TestInlineQueryResultVideoBase.input_message_content,
-                reply_markup=TestInlineQueryResultVideoBase.reply_markup,
-                thumb_url="some other url",
-            )
 
     def test_to_dict(self, inline_query_result_video):
         inline_query_result_video_dict = inline_query_result_video.to_dict()
@@ -279,6 +142,10 @@ class TestInlineQueryResultVideoWithoutRequest(TestInlineQueryResultVideoBase):
         assert (
             inline_query_result_video_dict["reply_markup"]
             == inline_query_result_video.reply_markup.to_dict()
+        )
+        assert (
+            inline_query_result_video_dict["show_caption_above_media"]
+            == inline_query_result_video.show_caption_above_media
         )
 
     def test_equality(self):
